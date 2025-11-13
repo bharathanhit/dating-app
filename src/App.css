@@ -1,0 +1,83 @@
+:root{
+  --footer-height: 70px; /* fixed footer height */
+  --floating-size: 70px; /* center floating button size */
+  --floating-overlap: calc(var(--floating-size) / 2);
+  --app-bottom-space: calc(var(--footer-height) + var(--floating-overlap) + 16px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #f5f5f5 0%, #ffffff 100%);
+  /* Reserve space for fixed footer + floating button to avoid clipping */
+  padding-bottom: var(--app-bottom-space);
+}
+
+/* main content grows to fill space above footer */
+.main-content {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+a { text-decoration: none; color: inherit; }
+
+/* Responsive font sizes */
+@media (max-width: 600px) {
+  h1 { font-size: 1.5rem !important; }
+  h2 { font-size: 1.3rem !important; }
+  h3 { font-size: 1.1rem !important; }
+  h4 { font-size: 1rem !important; }
+  h5 { font-size: 0.95rem !important; }
+
+  .MuiContainer-root {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .MuiPaper-root { border-radius: 8px !important; }
+}
+
+@media (min-width: 600px) and (max-width: 960px) {
+  .MuiContainer-root {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+@media (min-width: 960px) {
+  .MuiContainer-root {
+    padding-left: 2rem;
+    padding-right: 2rem;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+  }
+}
+
+/* Ensure cards/papers don't overflow */
+.MuiCard-root, .MuiPaper-root { overflow: hidden; }
+
+/* Smooth transitions */
+a, button { transition: all 0.18s ease-in-out; }
+
+/* Image responsive fix */
+img { max-width: 100%; height: auto; display: block; }
+
+/* Prevent horizontal scrolling */
+body, html { overflow-x: hidden; }
