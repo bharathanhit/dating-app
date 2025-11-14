@@ -1,4 +1,5 @@
-import { Card, CardContent, CardMedia, Typography, Button, Grid, Box, Chip, Avatar } from '@mui/material';
+import { Card, CardContent, CardMedia, Typography, Button, Grid, Box, Chip, Avatar, IconButton, Tooltip } from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
 import { Favorite, Clear } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { addLikedProfile, removeLikedProfile } from '../services/userService';
@@ -53,6 +54,7 @@ const ProfileCard = ({ profile }) => {
         mt: 2,
         mb: 2,
         borderRadius: { xs: '8px', sm: '12px' },
+        position: 'relative',
       }}
     >
       <CardMedia
@@ -64,7 +66,29 @@ const ProfileCard = ({ profile }) => {
         image={profile.image || 'https://via.placeholder.com/600x400'}
         alt={profile.name}
       />
-      <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <CardContent sx={{ p: { xs: 1.5, sm: 2 }, position: 'relative' }}>
+                {/* Premium Message Button */}
+                <Tooltip title="Message" placement="left">
+                  <IconButton
+                    onClick={() => navigate(`/messagesv2?uid=${profile.uid}`)}
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: 'linear-gradient(135deg, #FFD700 0%, #7a2fff 60%, #ff5fa2 100%)',
+                      color: '#fff',
+                      border: '2px solid #FFD700',
+                      boxShadow: '0 4px 16px 0 rgba(122,47,255,0.18)',
+                      zIndex: 2,
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #FFD700 0%, #7a2fff 60%, #ff5fa2 100%)',
+                        boxShadow: '0 6px 24px 0 rgba(255,215,0,0.18)',
+                      },
+                    }}
+                  >
+                    <SendIcon sx={{ fontSize: 26, color: '#FFD700', filter: 'drop-shadow(0 0 6px #7a2fff88)' }} />
+                  </IconButton>
+                </Tooltip>
         <Typography variant="h5" component="div" sx={{ fontSize: { xs: '1.3rem', sm: '1.5rem' }, mb: 0.5 }}>
           {profile.name} {profile.age ? `, ${profile.age}` : ''}
         </Typography>

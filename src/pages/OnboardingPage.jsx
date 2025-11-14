@@ -19,7 +19,7 @@ import {
 } from "@mui/material";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { createUserProfile, uploadProfileImage } from "../services/userService";
+import { createUserProfile } from "../services/userService";
 import { motion } from "framer-motion";
 import "react-datepicker/dist/react-datepicker.css";
 import DatePicker from "react-datepicker";
@@ -151,43 +151,30 @@ export default function OnboardingPage() {
     if (!validateCurrentStep()) return;
     setLoading(true);
     setError("");
+    try {
+      if (!user || !user.uid) throw new Error("User not authenticated");
+
+      // Only use the imageUrl provided by the user (no upload)
+      const finalImageUrl = imageUrl || null;
+      console.log('Saving profile with imageUrl:', finalImageUrl || 'none');
+      await createUserProfile(user.uid, {
+        ...formData,
+        email: user.email,
+        profileComplete: true,
+        image: finalImageUrl || null,
+      });
+      console.log('Profile saved successfully');
+
+      // After saving, refresh profile in context so isProfileComplete updates
       try {
-        if (!user || !user.uid) throw new Error("User not authenticated");
-
-        let finalImageUrl = imageUrl || null;
-        if (imageFile) {
-          // upload to Firebase Storage
-          try {
-            finalImageUrl = await uploadProfileImage(user.uid, imageFile, (p) => setImageUploadProgress(p));
-          } catch (upErr) {
-            console.error('Image upload failed', upErr);
-            setError('Failed to upload image. Please try again.');
-            setLoading(false);
-            return;
-          }
-        }
-
-        console.log('Saving profile with imageUrl:', finalImageUrl || 'none');
-        await createUserProfile(user.uid, {
-          ...formData,
-          email: user.email,
-          profileComplete: true,
-          image: finalImageUrl || null,
-        });
-        console.log('Profile saved successfully');
-
-        // After saving, refresh profile in context so isProfileComplete updates
-        try {
-          await refreshProfile();
-        } catch (e) {
-          console.warn('Failed to refresh profile after save', e);
-        }
-
-        navigate('/'); // Redirect to home after profile completion
-      } catch (err) {
-      console.error("Error saving profile:", err);
-      setError(err.message || "Failed to save profile. Please try again.");
-    } finally {
+        await refreshProfile();
+      } catch (refreshErr) {
+        console.warn('Profile refresh failed', refreshErr);
+      }
+      setLoading(false);
+      navigate("/profile");
+    } catch (err) {
+      setError(err.message || 'Failed to save profile');
       setLoading(false);
     }
   };
@@ -294,8 +281,9 @@ export default function OnboardingPage() {
                 <Box sx={{ mt: 2 }}>
                   <Autocomplete
                     options={TAMIL_NADU_DISTRICTS}
-                    value={formData.district}
+                    value={formData.district === '' ? null : formData.district}
                     onChange={(e, val) => setFormData((p) => ({ ...p, district: val || '' }))}
+                    isOptionEqualToValue={(option, value) => option === value}
                     renderInput={(params) => (
                       <TextField
                         {...params}
@@ -475,32 +463,10 @@ export default function OnboardingPage() {
                   {option.label}
                 </Button>
               ))}
-            </FormControl>
-            </Box>
-          </motion.div>
-        );
-
-  // Case 3: Interests
-  case 3:
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Box
-              sx={{
-                background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 244, 255, 0.95))",
-                border: "2px solid rgba(122, 47, 255, 0.3)",
-                borderRadius: 3,
-                p: 3,
-                boxShadow: "0 4px 20px rgba(122, 47, 255, 0.1)",
-              }}
-            >
-              <Typography 
-                variant="h6" 
+              <Typography
                 sx={{
-                  mb: 2,
+                  mt: 3,
+                  mb: 1,
                   color: "#7a2fff",
                   fontFamily: "'Poppins', sans-serif",
                   fontWeight: "700",
@@ -543,6 +509,7 @@ export default function OnboardingPage() {
                   ))
                 }
               />
+            </FormControl>
             </Box>
           </motion.div>
         );

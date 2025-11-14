@@ -55,14 +55,6 @@ const App = () => {
                   }
                 />
                 <Route
-                  path="/messagesv2"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <MessagesPageV2 />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
                   path="/likes"
                   element={
                     <ProtectedOnboardingRoute>

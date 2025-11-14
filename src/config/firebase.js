@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getDatabase } from 'firebase/database';
 
 // TODO: Replace with your Firebase project config
 // Get this from Firebase Console: https://console.firebase.google.com/
@@ -25,5 +26,8 @@ export const db = getFirestore(app);
 
 // Initialize Firebase Storage
 export const storage = getStorage(app);
+
+// Initialize Realtime Database
+export const realtimeDb = getDatabase(app);
 
 export default app;

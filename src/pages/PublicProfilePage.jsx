@@ -54,7 +54,15 @@ const PublicProfilePage = () => {
       )}
 
       <Box sx={{ display: 'flex', gap: 1 }}>
-        <Button variant="contained" onClick={() => navigate('/messages')}>Message</Button>
+        <Button
+          variant="contained"
+          onClick={async () => {
+            // Open or create conversation, then navigate to messagesv2 with the other user's UID
+            navigate(`/messagesv2?uid=${uid}`);
+          }}
+        >
+          Message
+        </Button>
         <Button variant="outlined" onClick={() => navigate('/likes')}>Back to Likes</Button>
       </Box>
     </Container>
