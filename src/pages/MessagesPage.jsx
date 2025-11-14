@@ -162,3 +162,119 @@ const MessagesPage = () => {
                 return (
 
                   <ConversationListItem key={c.id} conv={c} otherUid={other} onOpen={() => startWithUser(other)} />
+                );
+              })}
+                        </List>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={8}>
+                      <Paper sx={{ p: 2, minHeight: 400, display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(10px)' }}>
+                        {activeConv && otherProfile ? (
+                          <>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                              <Avatar src={otherProfile.photoURL} alt={otherProfile.displayName} sx={{ mr: 2 }} />
+                              <Box>
+                                <Typography variant="h6">{otherProfile.displayName || 'User'}</Typography>
+                                {otherProfile.birthDate && (
+                                  <Typography variant="body2" color="text.secondary">
+                                    Age: {computeAge(otherProfile.birthDate)}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                            <Divider sx={{ mb: 2 }} />
+                            <Box sx={{ flex: 1, overflowY: 'auto', mb: 2 }}>
+                              {messages.map((msg, idx) => (
+                                <Box
+                                  key={idx}
+                                  sx={{
+                                    display: 'flex',
+                                    flexDirection: msg.senderId === user.uid ? 'row-reverse' : 'row',
+                                    alignItems: 'flex-end',
+                                    mb: 1,
+                                  }}
+                                >
+                                  <Avatar
+                                    src={msg.senderId === user.uid ? user.photoURL : otherProfile.photoURL}
+                                    alt=""
+                                    sx={{ width: 32, height: 32, mx: 1 }}
+                                  />
+                                  <Box
+                                    sx={{
+                                      bgcolor: msg.senderId === user.uid ? '#7a2fff22' : '#ff5fa222',
+                                      borderRadius: 2,
+                                      px: 2,
+                                      py: 1,
+                                      maxWidth: '70%',
+                                    }}
+                                  >
+                                    <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+                                      {msg.text}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              ))}
+                              <div ref={messagesEndRef} />
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                              <TextField
+                                fullWidth
+                                variant="outlined"
+                                placeholder="Type your message..."
+                                value={text}
+                                onChange={(e) => setText(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSend();
+                                  }
+                                }}
+                                sx={{ mr: 1 }}
+                              />
+                              <IconButton color="primary" onClick={handleSend} disabled={!text.trim()}>
+                                <SendIcon />
+                              </IconButton>
+                            </Box>
+                          </>
+                        ) : (
+                          <Box sx={{ textAlign: 'center', mt: 8 }}>
+                            <Typography variant="h6" color="text.secondary">
+                              Select a conversation to start messaging.
+                            </Typography>
+                          </Box>
+                        )}
+                      </Paper>
+                    </Grid>
+                  </Grid>
+                </Container>
+              );
+            };
+            
+            // ConversationListItem component
+            const ConversationListItem = ({ conv, otherUid, onOpen }) => {
+              const [profile, setProfile] = useState(null);
+            
+              useEffect(() => {
+                let mounted = true;
+                if (otherUid) {
+                  getUserProfile(otherUid).then((p) => {
+                    if (mounted) setProfile(p);
+                  });
+                }
+                return () => { mounted = false; };
+              }, [otherUid]);
+            
+              return (
+                <ListItem button onClick={onOpen}>
+                  <ListItemAvatar>
+                    <Avatar src={profile?.photoURL} alt={profile?.displayName || 'User'} />
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={profile?.displayName || 'User'}
+                    secondary={conv.lastMessage ? conv.lastMessage.text : ''}
+                  />
+                </ListItem>
+              );
+            };
+            
+            export default MessagesPage;

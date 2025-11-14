@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { addLikedProfile, removeLikedProfile } from '../services/userService';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const ProfileCard = ({ profile }) => {
+const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
   const { user, refreshProfile, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -117,6 +117,7 @@ const ProfileCard = ({ profile }) => {
               startIcon={<Clear />}
               size="small"
               sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+              id={passBtnId}
             >
               Pass
             </Button>
@@ -130,6 +131,7 @@ const ProfileCard = ({ profile }) => {
               startIcon={<Favorite />}
               size="small"
               sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+              id={likeBtnId}
             >
               Like
             </Button>
