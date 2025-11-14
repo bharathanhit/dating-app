@@ -55,7 +55,8 @@ const Footer = () => {
             transform: "translateX(-50%) scale(1.08)",
           },
         }}
-        onClick={() => navigate("/messages")}
+        // Leave this for future feature (random connect)
+        onClick={() => {/* future: navigate to random connect page */}}
       >
         {/* Chat icon */}
         <ChatBubble
@@ -86,7 +87,7 @@ const Footer = () => {
       </Box>
 
       {/* Right icons */}
-      <IconButton onClick={() => navigate("/chat")} sx={{ color: "white" }}>
+      <IconButton onClick={() => navigate("/messages")} sx={{ color: "white" }}>
         <Chat fontSize="medium" />
       </IconButton>
 
