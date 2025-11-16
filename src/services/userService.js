@@ -1,5 +1,5 @@
 import { db } from '../config/firebase.js';
-import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc } from 'firebase/firestore';
 import { storage } from '../config/firebase.js';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
@@ -152,15 +152,19 @@ export const isProfileComplete = (profile) => {
   return requiredFields.every((field) => profile[field]);
 };
 
-// Add a liked profile entry to a user's document (stores minimal info)
+// Add a liked profile entry to a user's likedProfiles subcollection
 export const addLikedProfile = async (userId, likedProfile) => {
   try {
-    const userDocRef = doc(db, 'users', userId);
-    // Use arrayUnion to add the liked profile object (no duplication control)
-    await updateDoc(userDocRef, {
-      likedProfiles: arrayUnion(likedProfile),
-      updatedAt: serverTimestamp(),
+    const likedProfileRef = doc(collection(db, 'users', userId, 'likedProfiles'), likedProfile.uid);
+    // Store only minimal info
+    await setDoc(likedProfileRef, {
+      uid: likedProfile.uid,
+      name: likedProfile.name || '',
+      image: likedProfile.image || null,
+      createdAt: serverTimestamp(),
     });
+    // Optionally, update user's updatedAt
+    await updateDoc(doc(db, 'users', userId), { updatedAt: serverTimestamp() });
     return true;
   } catch (error) {
     console.error('Error adding liked profile:', error);
@@ -168,22 +172,28 @@ export const addLikedProfile = async (userId, likedProfile) => {
   }
 };
 
-// Remove a liked profile by uid from user's likedProfiles array
+// Remove a liked profile by uid from user's likedProfiles subcollection
 export const removeLikedProfile = async (userId, likedProfileUid) => {
   try {
-    const userDocRef = doc(db, 'users', userId);
-    // We cannot easily remove by matching object unless we know the exact object stored.
-    // For simplicity, fetch the document, filter client-side, and write back the array.
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) return false;
-    const data = userDoc.data() || {};
-    const current = Array.isArray(data.likedProfiles) ? data.likedProfiles : [];
-    const filtered = current.filter((p) => p.uid !== likedProfileUid);
-    await updateDoc(userDocRef, { likedProfiles: filtered, updatedAt: serverTimestamp() });
+    const likedProfileRef = doc(collection(db, 'users', userId, 'likedProfiles'), likedProfileUid);
+    await deleteDoc(likedProfileRef);
+    // Optionally, update user's updatedAt
+    await updateDoc(doc(db, 'users', userId), { updatedAt: serverTimestamp() });
     return true;
   } catch (error) {
     console.error('Error removing liked profile:', error);
     throw error;
+  }
+};
+// Get all liked profiles for a user from the subcollection
+export const getLikedProfiles = async (userId) => {
+  try {
+    const likedProfilesCol = collection(db, 'users', userId, 'likedProfiles');
+    const snapshot = await getDocs(likedProfilesCol);
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error('Error fetching liked profiles:', error);
+    return [];
   }
 };
 

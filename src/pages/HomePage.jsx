@@ -111,7 +111,18 @@ const HomePage = () => {
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.8}
-                style={{ width: '100%', position: 'relative' }}
+                style={{
+                  width: '100%',
+                  position: 'relative',
+                  background: swipeStatuses[idx] === 'liked'
+                    ? 'rgba(0, 255, 0, 0.1)'
+                    : swipeStatuses[idx] === 'passed'
+                    ? 'rgba(255, 0, 0, 0.1)'
+                    : 'transparent',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  rotate: swipeStatuses[idx] === 'liked' ? 15 : swipeStatuses[idx] === 'passed' ? -15 : 0,
+                }}
                 whileTap={{ scale: 0.97 }}
                 onDragEnd={(e, info) => {
                   if (info.offset.x > 120) {
@@ -182,7 +193,23 @@ const HomePage = () => {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <ProfileCard profile={profile} likeBtnId={`like-btn-${profile.uid}`} passBtnId={`pass-btn-${profile.uid}`} />
+                <ProfileCard
+                  profile={profile}
+                  likeBtnId={`like-btn-${profile.uid}`}
+                  passBtnId={`pass-btn-${profile.uid}`}
+                  sx={{
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                    border: '2px solid',
+                    borderColor: swipeStatuses[idx] === 'liked'
+                      ? 'rgba(0, 255, 0, 0.5)'
+                      : swipeStatuses[idx] === 'passed'
+                      ? 'rgba(255, 0, 0, 0.5)'
+                      : 'rgba(0,0,0,0.1)',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)',
+                  }}
+                />
               </motion.div>
             ))}
           </Box>

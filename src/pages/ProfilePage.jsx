@@ -16,6 +16,7 @@ import {
 import { Edit } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { updateUserProfile, uploadProfileImage } from '../services/userService';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 
 // Helper: convert file to data URL
 const fileToDataUrl = (file) => {
@@ -25,6 +26,52 @@ const fileToDataUrl = (file) => {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+};
+
+const SwipeableProfileCard = ({ profile, onLike, onPass }) => {
+  const x = useMotionValue(0);
+  const background = useTransform(x, [-200, 0, 200], ['rgba(255,0,0,0.2)', 'rgba(255,255,255,1)', 'rgba(0,255,0,0.2)']);
+  const rotate = useTransform(x, [-200, 200], [-15, 15]);
+
+  const handleDragEnd = (event, info) => {
+    if (info.offset.x > 150) {
+      onLike(profile);
+    } else if (info.offset.x < -150) {
+      onPass(profile);
+    }
+  };
+
+  return (
+    <motion.div
+      style={{ x, rotate, background }}
+      drag="x"
+      dragConstraints={{ left: 0, right: 0 }}
+      onDragEnd={handleDragEnd}
+      whileTap={{ scale: 1.1 }}
+      className="swipeable-card"
+    >
+      <Card
+        sx={{
+          width: '100%',
+          maxWidth: 400,
+          margin: 'auto',
+          mt: 2,
+          mb: 2,
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <CardContent>
+          <Typography variant="h5" gutterBottom>
+            {profile.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {profile.bio}
+          </Typography>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
 };
 
 const ProfilePage = () => {
@@ -95,6 +142,16 @@ const ProfilePage = () => {
       setLoading(false);
       setUploadProgress(0);
     }
+  };
+
+  const handleLike = (profile) => {
+    console.log('Liked profile:', profile);
+    // Add logic to handle liking the profile
+  };
+
+  const handlePass = (profile) => {
+    console.log('Passed profile:', profile);
+    // Add logic to handle passing the profile
   };
 
   if (!profile) {
@@ -239,6 +296,13 @@ const ProfilePage = () => {
           </Grid>
         </CardContent>
       </Card>
+
+      {/* Swipeable profile card demo */}
+      <SwipeableProfileCard
+        profile={profile}
+        onLike={handleLike}
+        onPass={handlePass}
+      />
     </Container>
   );
 };
