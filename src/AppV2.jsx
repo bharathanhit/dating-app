@@ -13,6 +13,7 @@ import MessagesPageV2 from './pages/MessagesPageV2.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import LikesPage from './pages/LikesPage.jsx';
 import PublicProfilePage from './pages/PublicProfilePage.jsx';
+import ChatInbox from './pages/Chatinbox.jsx';
 import './App.css';
 
 const theme = createTheme({
@@ -51,6 +52,14 @@ const App = () => {
                   element={
                     <ProtectedOnboardingRoute>
                       <MessagesPageV2 />
+                    </ProtectedOnboardingRoute>
+                  }
+                />
+                <Route
+                  path="/messages/:conversationId"
+                  element={
+                    <ProtectedOnboardingRoute>
+                      <ChatInbox />
                     </ProtectedOnboardingRoute>
                   }
                 />

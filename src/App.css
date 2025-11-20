@@ -81,3 +81,11 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* Prevent horizontal scrolling */
 body, html { overflow-x: hidden; }
+
+/* FIX: Disable global layout for messages page */
+.messages-wrapper {
+  padding-bottom: 0 !important;
+  min-height: 100vh !important;
+  height: 100vh !important;
+  display: block !important;
+}

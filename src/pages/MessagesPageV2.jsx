@@ -1,408 +1,443 @@
-// MessagesPage.jsx
-import React, { useEffect, useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+ // MessagesPage.jsx
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import {
+  Box,
   Container,
   Grid,
-  Paper,
   Typography,
   Avatar,
-  Box,
   List,
   ListItem,
   ListItemAvatar,
   ListItemText,
   Divider,
+  IconButton,
   TextField,
-  IconButton
-} from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import { useAuth } from '../context/AuthContext';
-import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
-import { sendMessageRealtime, listenForMessagesRealtime } from '../services/chatRealtimeService';
-import { getUserProfile } from '../services/userService';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
+  useMediaQuery,
+  useTheme,
+} from "@mui/material";
+import SendIcon from "@mui/icons-material/Send";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { useAuth } from "../context/AuthContext";
+import { getOrCreateConversation, listenForConversations } from "../services/chatServiceV2";
+import { listenForMessagesRealtime, sendMessageRealtime } from "../services/chatRealtimeService";
+import { getUserProfile } from "../services/userService";
+import { ref, onValue } from "firebase/database";
+import { realtimeDb } from "../config/firebase";
+
+const IG_GRADIENT = "linear-gradient(135deg,#8e2de2 0%,#4a00e0 50%,#ff5fa2 100%)";
+
+const formatTime = (ts) => {
+  if (!ts) return "";
+  const d = new Date(Number(ts));
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const dateLabelFor = (ts) => {
+  const d = new Date(Number(ts));
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    d.getFullYear() === yesterday.getFullYear() &&
+    d.getMonth() === yesterday.getMonth() &&
+    d.getDate() === yesterday.getDate();
+
+  if (sameDay) return "Today";
+  if (isYesterday) return "Yesterday";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+};
+
+// group sorted messages by date label
+const groupMessagesByDate = (messages) => {
+  const groups = [];
+  messages.forEach((m) => {
+    const ts = m.createdAt ?? m.timestamp ?? Date.now();
+    const label = dateLabelFor(ts);
+    const last = groups[groups.length - 1];
+    if (!last || last.label !== label) {
+      groups.push({ label, items: [m] });
+    } else {
+      last.items.push(m);
+    }
+  });
+  return groups;
+};
 
 const MessagesPage = () => {
   const location = useLocation();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery("(max-width:900px)");
+
   const [conversations, setConversations] = useState([]);
+  const [profileMap, setProfileMap] = useState({}); // uid -> profile
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [text, setText] = useState('');
-  const [loadingConv, setLoadingConv] = useState(true);
-  const [error, setError] = useState('');
-  const [receiver, setReceiver] = useState(null);
+  const [text, setText] = useState("");
   const [status, setStatus] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // listen for conversations
+  // Hide footer on this page
   useEffect(() => {
-    if (!user || !user.uid) {
-      console.warn('MessagesPage: no user available yet.');
-      return undefined;
+    const footer = document.querySelector("footer");
+    if (footer) footer.style.display = "none";
+    return () => {
+      if (footer) footer.style.display = "block";
+    };
+  }, []);
+
+  // auto-scroll on messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Listen for conversations
+  useEffect(() => {
+    if (!user?.uid) {
+      // fallback sample or empty
+      setConversations([]);
+      return;
     }
 
-    setLoadingConv(true);
-
-    let unsubConversations;
+    let unsub;
     try {
-      unsubConversations = listenForConversations(user.uid, (list) => {
-        setConversations(Array.isArray(list) ? list : []);
-        setLoadingConv(false);
+      unsub = listenForConversations(user.uid, (list) => {
+        const arr = Array.isArray(list) ? list : [];
+        // normalize items: ensure id and participants exist
+        const normalized = arr.map((c) => ({
+          id: c.id || c.conversationId || JSON.stringify(c),
+          participants: c.participants || c.users || [],
+          lastMessage: (c.lastMessage && (c.lastMessage.text || c.lastMessage)) || "",
+          raw: c,
+        }));
+        setConversations(normalized);
+
+        // prefetch profiles for other participants so avatars show immediately
+        normalized.forEach((c) => {
+          const other = (c.participants || []).find((id) => id !== user.uid) || c.participants?.[0];
+          if (other && !profileMap[other]) {
+            getUserProfile(other)
+              .then((p) => setProfileMap((m) => ({ ...m, [other]: p || { uid: other } })))
+              .catch(() => {});
+          }
+        });
       });
     } catch (err) {
-      console.error('listenForConversations threw:', err);
-      setLoadingConv(false);
+      console.error("listenForConversations threw:", err);
     }
 
+    // handle url param open
     const params = new URLSearchParams(location.search);
-    const targetUid = params.get('uid');
+    const targetUid = params.get("uid");
     if (targetUid && targetUid !== user.uid) {
-      openConversationWith(targetUid).catch((e) => console.error('openConversationWith error:', e));
+      openConversationWith(targetUid).catch((e) => console.error(e));
     }
 
-    // cleanup: only call if function
     return () => {
-      if (typeof unsubConversations === 'function') unsubConversations();
+      if (typeof unsub === "function") unsub();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, location.search]);
+  }, [user]);
 
-  // listen for messages in the active conversation
+  // Listen for messages for active conversation (realtime)
   useEffect(() => {
-    if (!activeConv || !activeConv.id) {
+    if (!activeConv?.id) {
       setMessages([]);
-      return undefined;
+      return;
     }
 
-    const localMessages = [];
-
+    const convId = activeConv.id;
     let unsubMessages;
     try {
-      unsubMessages = listenForMessagesRealtime(activeConv.id, (msg) => {
+      unsubMessages = listenForMessagesRealtime(convId, (msg) => {
         if (!msg) return;
+        // support createdAt or timestamp
+        const normalizedMsg = {
+          ...msg,
+          createdAt: msg.createdAt ?? msg.timestamp ?? Date.now(),
+        };
 
-        // normalize: ensure timestamp exists
-        if (msg.timestamp == null) {
-          // try to preserve order by assigning a fallback
-          msg.timestamp = Date.now();
+        setMessages((prev) => {
+          const merged = [...prev, normalizedMsg];
+          merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
+          return merged;
+        });
+
+        // prefetch sender profile if missing
+        if (normalizedMsg.senderId && !profileMap[normalizedMsg.senderId]) {
+          getUserProfile(normalizedMsg.senderId)
+            .then((p) => setProfileMap((m) => ({ ...m, [normalizedMsg.senderId]: p || { uid: normalizedMsg.senderId } })))
+            .catch(() => {});
         }
-
-        localMessages.push(msg);
-
-        // keep sorted by timestamp ascending
-        localMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-        setMessages([...localMessages]);
-
-        // auto-scroll
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       });
     } catch (err) {
-      console.error('listenForMessagesRealtime threw:', err);
+      console.error("listenForMessagesRealtime threw:", err);
     }
 
     return () => {
-      if (typeof unsubMessages === 'function') unsubMessages();
+      if (typeof unsubMessages === "function") unsubMessages();
     };
-  }, [activeConv]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConv, profileMap]);
 
-  // Fetch online status of the receiver
+  // Fetch online status for active conversation's other participant
   useEffect(() => {
-    if (!receiver?.uid) return;
-
-    const statusRef = ref(realtimeDb, `status/${receiver.uid}`);
-    return onValue(statusRef, (snap) => {
+    if (!activeConv) return;
+    const other = (activeConv.participants || []).find((id) => id !== user?.uid);
+    if (!other) return;
+    const statusRef = ref(realtimeDb, `status/${other}`);
+    const off = onValue(statusRef, (snap) => {
       setStatus(snap.val());
     });
-  }, [receiver]);
+    return () => {
+      try {
+        if (typeof off === "function") off();
+      } catch {}
+    };
+  }, [activeConv, user]);
 
+  // open conversation with other uid (existing conv or create)
   const openConversationWith = async (otherUid) => {
-    if (!user || !user.uid) {
-      const msg = 'openConversationWith called but user is not ready';
-      console.warn(msg);
-      setError(msg);
-      return;
-    }
-    if (!otherUid) {
-      const msg = 'openConversationWith called with invalid otherUid';
-      console.warn(msg);
-      setError(msg);
-      return;
-    }
-
+    if (!user?.uid) return;
     try {
       const conv = await getOrCreateConversation(user.uid, otherUid);
-      if (!conv) throw new Error('getOrCreateConversation returned falsy value');
-      setActiveConv(conv);
-      setError('');
-      setReceiver({ uid: otherUid }); // Set receiver state
+      if (!conv) throw new Error("No conversation");
+      // fetch other profile
+      const prof = await getUserProfile(otherUid);
+      setProfileMap((m) => ({ ...m, [otherUid]: prof || { uid: otherUid } }));
+      // set active conv, attach otherUid for header convenience
+      const enriched = {
+        ...conv,
+        otherUid,
+      };
+      setActiveConv(enriched);
+      setMessages([]); // will be filled by realtime listener
     } catch (err) {
-      console.error('Failed to open conversation:', err);
-      setError('Failed to open conversation: ' + (err?.message || err));
+      console.error("openConversationWith failed:", err);
     }
   };
 
-  const handleSend = async () => {
-    if (!text.trim()) {
-      setError('Message is empty');
-      return;
-    }
-    if (!activeConv || !activeConv.id) {
-      setError('No conversation selected');
-      return;
-    }
-    if (!user || !user.uid) {
-      setError('User not authenticated');
-      return;
-    }
-
-    const payload = {
-      senderId: user.uid,
-      text: text.trim(),
-      timestamp: Date.now()
-    };
-
-    try {
-      await sendMessageRealtime(activeConv.id, payload);
-      setText('');
-      setError('');
-    } catch (err) {
-      console.error('sendMessageRealtime error:', err);
-      setError('Failed to send message: ' + (err?.message || err));
-    }
-  };
-
+  // start with user from list
   const startWithUser = async (uid) => {
     await openConversationWith(uid);
   };
 
-  // sortedMessages is guaranteed sorted ascending by timestamp
-  const sortedMessages = Array.isArray(messages)
-    ? [...messages].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-    : [];
+  // send message (writes to realtime via service)
+  const handleSend = async () => {
+    if (!text.trim()) return;
+    if (!activeConv?.id) return;
 
-  const renderStatus = () => {
-    if (!status) return null;
+    const payload = {
+      senderId: user.uid,
+      text: text.trim(),
+      createdAt: Date.now(),
+    };
 
-    if (status.online) {
-      return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '10px', height: '10px', backgroundColor: 'green', borderRadius: '50%' }}></div>
-          <span style={{ color: 'green', fontSize: '0.875rem', fontWeight: 'bold' }}>Online</span>
-        </div>
-      );
+    try {
+      // optimistic UI
+      setMessages((prev) => {
+        const merged = [...prev, payload];
+        merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
+        return merged;
+      });
+
+      await sendMessageRealtime(activeConv.id, payload);
+      setText("");
+    } catch (err) {
+      console.error("sendMessageRealtime error:", err);
     }
+  };
 
-    return (
-      <span style={{ color: 'gray', fontSize: '0.875rem' }}>
-        Last seen: {status.lastSeen ? new Date(status.lastSeen).toLocaleString() : '—'}
-      </span>
-    );
+  // Build grouped messages by date for rendering
+  const grouped = useMemo(() => {
+    const sorted = Array.isArray(messages)
+      ? [...messages].sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)))
+      : [];
+    return groupMessagesByDate(sorted);
+  }, [messages]);
+
+  // header info: other profile
+  const otherUid = activeConv ? (activeConv.participants || []).find((id) => id !== user?.uid) : null;
+  const otherProfile = otherUid ? profileMap[otherUid] : null;
+
+  // UI mobile control: show list or chat
+  const [mobileShowList, setMobileShowList] = useState(true);
+  useEffect(() => {
+    if (!isMobile) setMobileShowList(true);
+  }, [isMobile]);
+  useEffect(() => {
+    if (isMobile && activeConv) setMobileShowList(false);
+  }, [isMobile, activeConv]);
+
+  // Updated text color to black for better readability
+  const textStyle = {
+    color: 'black',
   };
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ minHeight: '100vh', pb: 0, background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, px: { xs: 2, md: 6 }, pt: 3 }}>
-        <Typography
-          variant="h3"
-          sx={{
-            background: 'linear-gradient(135deg, #441792ff 0%, #5d197cff 50%, #5a2480ff 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            fontSize: { xs: '1.75rem', sm: '2.125rem' },
-            fontWeight: 700
-          }}
-        >
-          Messages
-        </Typography>
+    <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#fff" }}>
+      {/* Header */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 2, borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>Messages</Typography>
+        {!isMobile && activeConv && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Avatar src={otherProfile?.image || ""} sx={{ width: 36, height: 36 }} />
+            <Box>
+              <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", ...textStyle }}>
+                {otherProfile?.name || otherUid || "Conversation"}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
+              </Typography>
+            </Box>
+          </Box>
+        )}
       </Box>
 
-      <Grid container>
-        <Grid item xs={12} md={4} sx={{ minHeight: 'calc(100vh - 64px)', borderRight: '1px solid rgba(122,47,255,0.08)', background: 'rgba(255,255,255,0.7)' }}>
-          <Paper elevation={0} sx={{ p: 1, background: 'transparent', boxShadow: 'none' }}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                px: 1,
-                py: 0.5,
-                background: 'linear-gradient(90deg, #7a2fff 0%, #ff5fa2 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                fontWeight: 600
-              }}
-            >
-              Conversations
-            </Typography>
-            <Divider />
-            <List>
-              {conversations.map((c) => {
-                const other = (c.participants || []).find((id) => id !== user?.uid);
-                return (
-                  <ConversationListItem key={c.id || JSON.stringify(c)} conv={c} otherUid={other} onOpen={() => startWithUser(other)} />
-                );
-              })}
-              {conversations.length === 0 && (
-                <ListItem>
-                  <ListItemText primary={loadingConv ? 'Loading conversations...' : 'No conversations yet. Like someone to start!'} />
-                </ListItem>
-              )}
-            </List>
-          </Paper>
-        </Grid>
+      <Grid container sx={{ flex: 1, minHeight: 0 }}>
+        {/* Conversations List */}
+        {(!isMobile || (isMobile && mobileShowList)) && (
+          <Grid item xs={12} md={4} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto" }}>
+            <Box sx={{ py: 1 }}>
+              <List disablePadding>
+                {conversations.map((c) => {
+                  const other = (c.participants || []).find((id) => id !== user?.uid) || (c.participants || [])[0];
+                  const prof = other ? profileMap[other] : null;
+                  return (
+                    <Box key={c.id}>
+                      <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2 }}>
+                        <ListItemAvatar>
+                          <Avatar src={prof?.image || ""}>
+                            {!prof?.image ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={prof?.name || other || "User"}
+                          secondary={c.lastMessage || ""}
+                        />
+                      </ListItem>
+                      <Divider />
+                    </Box>
+                  );
+                })}
+                {conversations.length === 0 && (
+                  <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>No conversations yet.</Box>
+                )}
+              </List>
+            </Box>
+          </Grid>
+        )}
 
-        <Grid item xs={12} md={8} sx={{ minHeight: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column', background: 'linear-gradient(135deg, rgba(122,47,255,0.03) 0%, rgba(255,95,162,0.03) 100%)', p: 0 }}>
-          <Paper elevation={0} sx={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'transparent', boxShadow: 'none', p: 0 }}>
-            <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-              {!activeConv ? (
-                <Typography sx={{ textAlign: 'center', mt: 5, background: 'linear-gradient(90deg, #7a2fff 0%, #ff5fa2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  Select a conversation to start chatting.
-                </Typography>
-              ) : (
+        {/* Chat Panel */}
+        {(!isMobile || (isMobile && !mobileShowList)) && (
+          <Grid item xs={12} md={8} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
+            {/* Panel header for mobile (back + avatar + name) */}
+            {isMobile && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+                <IconButton onClick={() => { setActiveConv(null); setMobileShowList(true); }}>
+                  <ArrowBackIcon />
+                </IconButton>
+                <Avatar src={otherProfile?.image || ""} />
                 <Box>
-                  {sortedMessages.length === 0 ? (
-                    <Typography color="text.secondary" sx={{ textAlign: 'center', mt: 2 }}>
-                      {activeConv?.lastMessage || 'No messages yet. Start the conversation!'}
-                    </Typography>
-                  ) : (
-                    <>
-                      {sortedMessages.map((m, index) => {
-                        const messageDate = m.timestamp ? new Date(m.timestamp) : null;
+                  <Typography sx={{ fontWeight: 600, ...textStyle }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
 
-                        const showDate =
-                          index === 0 ||
-                          (messageDate &&
-                            new Date(sortedMessages[index - 1]?.timestamp).toDateString() !== messageDate.toDateString());
+            {/* Messages area */}
+            <Box sx={{ flex: 1, overflowY: "auto", px: 2, py: 2, minHeight: 0 }}>
+              {!activeConv ? (
+                <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Typography variant="body1" sx={{ color: "black" }}>
+                    Select a conversation to start chatting.
+                  </Typography>
+                </Box>
+              ) : (
+                <>
+                  {grouped.map((g) => (
+                    <Box key={g.label}>
+                      {/* date separator above the group's messages */}
+                      <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
+                        <Typography variant="caption" sx={{ background: "rgba(0,0,0,0.02)", px: 2, py: 0.4, borderRadius: 20 }}>
+                          {g.label}
+                        </Typography>
+                      </Box>
 
+                      {g.items.map((m, i) => {
+                        const isMe = m.senderId && user?.uid ? m.senderId === user.uid : false;
+                        const senderProfile = m.senderId ? profileMap[m.senderId] : null;
                         return (
-                          <React.Fragment key={m.id || m.timestamp || index}>
-                            {showDate && messageDate && !isNaN(messageDate.getTime()) && (
-                              <Typography sx={{ textAlign: 'center', color: 'rgba(0,0,0,0.6)', fontSize: '0.85rem', my: 1 }}>
-                                {messageDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                              </Typography>
-                            )}
-                            <Box sx={{ display: 'flex', justifyContent: m.senderId === user?.uid ? 'flex-end' : 'flex-start', mb: 1 }}>
-                              <Box sx={{
-                                maxWidth: '75%',
-                                p: 1.25,
-                                borderRadius: 2,
-                                background: m.senderId === user?.uid ? 'linear-gradient(135deg, #7a2fff 0%, #ff5fa2 100%)' : 'linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%)',
-                                boxShadow: m.senderId === user?.uid ? '0 4px 12px rgba(122,47,255,0.18)' : '0 2px 6px rgba(0,0,0,0.06)',
-                                color: m.senderId === user?.uid ? 'white' : '#333'
-                              }}>
-                                <Typography sx={{ whiteSpace: 'pre-wrap', fontWeight: 500 }}>{m.text}</Typography>
-                                {messageDate && !isNaN(messageDate.getTime()) && (
-                                  <Typography sx={{ fontSize: '0.75rem', color: m.senderId === user?.uid ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.6)', mt: 0.5 }}>
-                                    {messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </Typography>
-                                )}
+                          <Box key={(m.id || m.createdAt || i) + "-" + i} sx={{ display: "flex", alignItems: "flex-end", mb: 1.25 }}>
+                            {/* avatar for incoming */}
+                            <Box sx={{ width: 44, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
+                              {!isMe ? (
+                                <Avatar src={(senderProfile && senderProfile.image) || otherProfile?.image || ""} sx={{ width: 36, height: 36 }} />
+                              ) : <Box sx={{ width: 36 }} />}
+                            </Box>
+
+                            {/* bubble */}
+                            <Box sx={{ flex: 1, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
+                              <Box
+                                sx={{
+                                  borderRadius: 20,
+                                  px: 2,
+                                  py: 1,
+                                  maxWidth: "78%",
+                                  background: isMe ? IG_GRADIENT : "#fff",
+                                  color: isMe ? "#ffffffff" : "#111",
+                                  boxShadow: isMe ? "0 6px 20px rgba(74,0,224,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
+                                  border: isMe ? "none" : "1px solid rgba(0,0,0,0.04)",
+                                }}
+                              > 
+                                <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
+                                <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
+                                  {formatTime(m.createdAt ?? m.timestamp)}
+                                </Typography>
                               </Box>
                             </Box>
-                          </React.Fragment>
+
+                            {/* spacer (balance) */}
+                            <Box sx={{ width: 44 }} />
+                          </Box>
                         );
                       })}
-                      <div ref={messagesEndRef} />
-                    </>
-                  )}
-                </Box>
+                    </Box>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
               )}
             </Box>
 
-            <Box sx={{ p: 1.5, borderTop: '1px solid rgba(122,47,255,0.08)', display: 'flex', gap: 1, background: 'rgba(255,255,255,0.6)' }}>
+            {/* Input */}
+            <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center" }}>
               <TextField
                 fullWidth
-                placeholder="Type a message..."
+                placeholder={activeConv ? `Message ${otherProfile?.name || ""}` : "Select a conversation"}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
                 disabled={!activeConv}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '20px',
-                    background: 'white',
-                  }
-                }}
+                size="small"
+                sx={{ borderRadius: 3, background: "#fff" }}
               />
-              <IconButton
-                onClick={handleSend}
-                disabled={!activeConv || !text.trim()}
-                sx={{
-                  background: !activeConv || !text.trim() ? 'linear-gradient(135deg, #bdbdbd 0%, #e0e0e0 100%)' : 'linear-gradient(135deg, #FFD700 0%, #7a2fff 60%, #ff5fa2 100%)',
-                  color: '#fff',
-                  borderRadius: '50%',
-                  width: 52,
-                  height: 52
-                }}
-              >
-                <SendIcon sx={{ fontSize: 28 }} />
+              <IconButton color="primary" disabled={!activeConv || !text.trim()} onClick={handleSend}>
+                <SendIcon />
               </IconButton>
             </Box>
-          </Paper>
-        </Grid>
+          </Grid>
+        )}
       </Grid>
     </Container>
   );
 };
 
-const ConversationListItem = ({ conv, otherUid, onOpen }) => {
-  const [profile, setProfile] = useState(null);
-
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-15, 15]);
-  const opacity = useTransform(x, [-200, 0, 200], [0, 1, 0]);
-
-  const handleDragEnd = (event, info) => {
-    if (info.offset.x > 150) {
-      console.log('Swiped right for:', profile?.name || otherUid);
-    } else if (info.offset.x < -150) {
-      console.log('Swiped left for:', profile?.name || otherUid);
-    }
-  };
-
-  useEffect(() => {
-    if (!otherUid) return;
-
-    let active = true;
-    getUserProfile(otherUid)
-      .then((p) => { if (active) setProfile(p); })
-      .catch((err) => { console.warn('getUserProfile failed for', otherUid, err); });
-
-    return () => { active = false; };
-  }, [otherUid]);
-
-  return (
-    <motion.div
-      style={{ x, rotate, opacity }}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      onDragEnd={handleDragEnd}
-      whileTap={{ scale: 1.1 }}
-    >
-      <ListItem
-        button
-        onClick={() => {
-          if (typeof onOpen === 'function') onOpen();
-        }}
-        sx={{
-          transition: 'all 0.2s ease',
-          '&:hover': { background: 'linear-gradient(135deg, rgba(122,47,255,0.06) 0%, rgba(255,95,162,0.06) 100%)', transform: 'translateX(3px)' }
-        }}
-      >
-        <ListItemAvatar>
-          <Avatar src={profile?.image || ''} sx={{ border: '2px solid transparent' }} />
-        </ListItemAvatar>
-
-        <ListItemText
-          primary={profile?.name || otherUid}
-          secondary={conv?.lastMessage?.text || 'No messages yet'}
-        />
-      </ListItem>
-    </motion.div>
-  );
-};
-
-export default MessagesPage;
+export default MessagesPage;           

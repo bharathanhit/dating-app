@@ -13,9 +13,6 @@ import {
   Autocomplete,
   Chip,
   Typography,
-  Stepper,
-  Step,
-  StepLabel,
 } from "@mui/material";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -31,8 +28,11 @@ import "@fontsource/poppins/600.css";
 import "@fontsource/poppins/700.css";
 import "@fontsource/dancing-script/400.css";
 import "@fontsource/dancing-script/700.css";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db } from "../config/firebase";
+import { doc, updateDoc } from "firebase/firestore";
 
-const steps = ["Personal Info", "Photo", "Preferences", "Interests", "Confirm"];
+const steps = ["Personal Info", "Photo", "Preferences", "Bio", "Review & Confirm"];
 const INTERESTS_LIST = [
   "Travel",
   "Sports",
@@ -75,6 +75,7 @@ export default function OnboardingPage() {
     interests: [],
     birthDate: "",
     district: "",
+    bio: "", // Add bio field
   });
 
   const TAMIL_NADU_DISTRICTS = [
@@ -120,9 +121,11 @@ export default function OnboardingPage() {
           return setError("Please select what you are looking for");
         break;
       }
-      case 3: {
-        if (formData.interests.length === 0)
-          return setError("Please select at least one interest");
+      case 3: { // Bio step
+        if (!formData.bio.trim()) {
+          console.warn("Bio is empty. User can skip this step.");
+          return true; // Allow skipping
+        }
         break;
       }
       default:
@@ -179,8 +182,36 @@ export default function OnboardingPage() {
     }
   };
 
-  const renderStepContent = () => {
-    switch (activeStep) {
+  // Function to handle image upload
+  const handleImageUpload = async (file, userId) => {
+    if (!file) {
+      alert("Please select an image file.");
+      return;
+    }
+
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `user-images/${userId}/${file.name}`);
+
+      // Upload the file to Firebase Storage
+      await uploadBytes(storageRef, file);
+
+      // Get the download URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Store the URL in Firestore
+      const userDocRef = doc(db, "users", userId);
+      await updateDoc(userDocRef, { profileImage: downloadURL });
+
+      alert("Image uploaded successfully!");
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      alert("Failed to upload image. Please try again.");
+    }
+  };
+
+  const renderStepContent = (step) => {
+    switch (step) {
       case 0:
         return (
           <motion.div
@@ -514,7 +545,79 @@ export default function OnboardingPage() {
           </motion.div>
         );
 
-  // Case 4: Confirmation
+      // Bio step
+      case 3:
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Box
+              sx={{
+                background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 244, 255, 0.95))",
+                border: "2px solid rgba(122, 47, 255, 0.3)",
+                borderRadius: 3,
+                p: 3,
+                boxShadow: "0 4px 20px rgba(122, 47, 255, 0.1)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              <Typography 
+                variant="h6"
+                sx={{
+                  color: "#2c0276ff",
+                
+                  fontWeight: "700",
+                  fontSize: "1.2rem",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Tell us about yourself
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                placeholder="Write a short bio about yourself..."
+                value={formData.bio}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, bio: e.target.value }))
+                }
+                sx={{
+                  '& .MuiOutlinedInput-root': { borderRadius: 2 }
+                }}
+              />
+
+              <Box sx={{ display: "flex", gap: 2, mt: 1, width: '100%' }}>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={() => {
+                    setActiveStep((s) => s + 1);
+                    setError('');
+                  }}
+                  sx={{ borderRadius: 3 }}
+                >
+                  Skip
+                </Button>
+
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={() => setActiveStep((s) => s + 1)}
+                  sx={{ borderRadius: 3 }}
+                >
+                  Next
+                </Button>
+              </Box>
+            </Box>
+          </motion.div>
+        );
+
+  // Case 4: Review & Confirm
   case 4:
         return (
           <motion.div
@@ -624,6 +727,17 @@ export default function OnboardingPage() {
                     />
                   ))}
                 </Box>
+                <Typography 
+                  variant="body2"
+                  sx={{
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: "600",
+                    mb: 1,
+                    color: "#333",
+                  }}
+                >
+                  <strong>Bio:</strong> {formData.bio || "Not provided"}
+                </Typography>
               </Box>
               <Typography 
                 variant="body2" 
@@ -694,21 +808,13 @@ export default function OnboardingPage() {
         </Typography>
       </Box>
 
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {steps.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
       )}
 
-      <Box sx={{ mb: 4 }}>{renderStepContent()}</Box>
+      <Box sx={{ mb: 4 }}>{renderStepContent(activeStep)}</Box>
 
       {activeStep !== 1 && (
         <Box sx={{ display: "flex", gap: 2, justifyContent: "space-between" }}>

@@ -1,5 +1,7 @@
 import { db } from '../config/firebase.js';
 import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { ref, onValue, set } from 'firebase/database';
+import { realtimeDb } from '../config/firebase';
 
 // Deterministic conversation id for two users (sorted uids)
 const conversationIdFor = (uidA, uidB) => {
@@ -93,6 +95,7 @@ export const listenForConversations = (userUid, onUpdate) => {
         const list = [];
         snap.forEach((docSnap) => {
           const data = docSnap.data();
+          console.log('[Chat] Conversation data:', data);
           if (data.participants?.includes(userUid)) {
             list.push({ id: docSnap.id, ...data });
           }
@@ -146,4 +149,61 @@ export const listenForMessages = (conversationId, onUpdate) => {
     console.error('[Chat] listenForMessages setup error:', err.message);
     return () => {};
   }
+};
+
+// Function to update user online status
+export const updateUserStatus = (userUid, isOnline) => {
+  if (!userUid) {
+    console.warn('[Chat] No userUid provided for status update');
+    return;
+  }
+
+  const statusRef = ref(realtimeDb, `status/${userUid}`);
+  const statusData = isOnline
+    ? { online: true, lastSeen: null }
+    : { online: false, lastSeen: Date.now() };
+
+  set(statusRef, statusData)
+    .then(() => console.log('[Chat] User status updated:', statusData))
+    .catch((err) => console.error('[Chat] Failed to update user status:', err.message));
+};
+
+// Function to listen for user online status
+export const listenForUserStatus = (userUid, onUpdate) => {
+  if (!userUid) {
+    console.warn('[Chat] No userUid provided for status listener');
+    return () => {};
+  }
+
+  const statusRef = ref(realtimeDb, `status/${userUid}`);
+  const unsub = onValue(statusRef, (snap) => {
+    const status = snap.val();
+    console.log('[Chat] User status update:', status);
+    onUpdate(status);
+  });
+
+  return () => {
+    unsub();
+    console.log('[Chat] Stopped listening for user status:', userUid);
+  };
+};
+
+// Function to listen for last messages in a conversation
+export const listenForLastMessages = (conversationId, onUpdate) => {
+  if (!conversationId) {
+    console.warn('[Chat] No conversationId provided for last messages listener');
+    return () => {};
+  }
+
+  const lastMessageRef = ref(realtimeDb, `conversations/${conversationId}/lastMessage`);
+  const unsub = onValue(lastMessageRef, (snap) => {
+    const lastMessage = snap.val();
+    console.log('[Chat] Last message update:', lastMessage);
+    onUpdate(lastMessage);
+  });
+
+  return () => {
+    unsub();
+    console.log('[Chat] Stopped listening for last messages in:', conversationId);
+  };
 };

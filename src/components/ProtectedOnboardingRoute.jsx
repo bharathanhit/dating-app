@@ -5,6 +5,8 @@ import { CircularProgress, Box } from '@mui/material';
 export const ProtectedOnboardingRoute = ({ children }) => {
   const { isAuthenticated, isProfileComplete, loading } = useAuth();
 
+  console.log('ProtectedOnboardingRoute: Authenticated:', isAuthenticated, 'Profile Complete:', isProfileComplete, 'Loading:', loading); // Debugging log
+
   if (loading) {
     return (
       <Box
@@ -27,6 +29,8 @@ export const ProtectedOnboardingRoute = ({ children }) => {
   if (!isProfileComplete) {
     return <Navigate to="/onboarding" replace />;
   }
+
+  console.log('ProtectedOnboardingRoute: Rendering children. Authenticated:', isAuthenticated, 'Profile Complete:', isProfileComplete, 'Loading:', loading);
 
   return children;
 };
