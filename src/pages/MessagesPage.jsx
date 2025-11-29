@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { ref, onValue, set, serverTimestamp, update, push } from "firebase/database";
-import { db } from "../firebase"; // update if needed
+import { realtimeDb } from "../config/firebase";
 import { useAuth } from "../context/AuthContext";
-import { ListItemText } from "@mui/material";
 
 const MessagesPage = ({ activeConv, receiver }) => {
   const { user } = useAuth();
@@ -19,7 +18,7 @@ const MessagesPage = ({ activeConv, receiver }) => {
   useEffect(() => {
     if (!receiver?.uid) return;
 
-    const statusRef = ref(db, `status/${receiver.uid}`);
+    const statusRef = ref(realtimeDb, `status/${receiver.uid}`);
     return onValue(statusRef, snap => {
       setStatus(snap.val());
     });
@@ -32,7 +31,7 @@ const MessagesPage = ({ activeConv, receiver }) => {
   useEffect(() => {
     if (!user?.uid) return;
 
-    const myStatusRef = ref(db, `status/${user.uid}`);
+    const myStatusRef = ref(realtimeDb, `status/${user.uid}`);
 
     // online now
     set(myStatusRef, {
@@ -63,7 +62,7 @@ const MessagesPage = ({ activeConv, receiver }) => {
   useEffect(() => {
     if (!activeConv?.id) return;
 
-    const msgsRef = ref(db, `messages/${activeConv.id}`);
+    const msgsRef = ref(realtimeDb, `messages/${activeConv.id}`);
     return onValue(msgsRef, snap => {
       const data = snap.val() || {};
       const arr = Object.keys(data).map(id => ({ id, ...data[id] }));
@@ -77,11 +76,15 @@ const MessagesPage = ({ activeConv, receiver }) => {
   // 4️⃣ TYPING INDICATOR
   // ----------------------------
 
-  const typingRef = ref(db, `typing/${activeConv?.id}/${user.uid}`);
-  const theirTypingRef = ref(db, `typing/${activeConv?.id}/${receiver?.uid}`);
+  const typingRef = user?.uid && activeConv?.id
+    ? ref(realtimeDb, `typing/${activeConv.id}/${user.uid}`)
+    : null;
+  const theirTypingRef = receiver?.uid && activeConv?.id
+    ? ref(realtimeDb, `typing/${activeConv.id}/${receiver.uid}`)
+    : null;
 
   const handleTyping = (e) => {
-    if (!activeConv?.id) return;
+    if (!activeConv?.id || !typingRef) return;
 
     if (e.target.value.length > 0) {
       if (!typing) {
@@ -96,7 +99,7 @@ const MessagesPage = ({ activeConv, receiver }) => {
 
   // Listen to their typing
   useEffect(() => {
-    if (!receiver?.uid || !activeConv?.id) return;
+    if (!theirTypingRef) return;
 
     return onValue(theirTypingRef, (snap) => {
       setTheirTyping(snap.val() === true);
@@ -109,9 +112,9 @@ const MessagesPage = ({ activeConv, receiver }) => {
 
   const sendMessage = async () => {
     const text = msgRef.current.value.trim();
-    if (!text) return;
+    if (!text || !activeConv?.id) return;
 
-    const msgListRef = ref(db, `messages/${activeConv.id}`);
+    const msgListRef = ref(realtimeDb, `messages/${activeConv.id}`);
     const newMsgRef = push(msgListRef);
 
     await set(newMsgRef, {
@@ -122,7 +125,9 @@ const MessagesPage = ({ activeConv, receiver }) => {
     });
 
     // stop typing
-    set(typingRef, false);
+    if (typingRef) {
+      set(typingRef, false);
+    }
 
     msgRef.current.value = "";
     setTyping(false);
@@ -133,14 +138,14 @@ const MessagesPage = ({ activeConv, receiver }) => {
   // ----------------------------
 
   useEffect(() => {
-    if (!messages.length) return;
+    if (!messages.length || !activeConv?.id) return;
     messages.forEach((m) => {
       if (m.senderId !== user.uid && !m.seen) {
-        const msgSeenRef = ref(db, `messages/${activeConv.id}/${m.id}`);
+        const msgSeenRef = ref(realtimeDb, `messages/${activeConv.id}/${m.id}`);
         update(msgSeenRef, { seen: true });
       }
     });
-  }, [messages]);
+  }, [messages, activeConv, user]);
 
   // ----------------------------
   // 7️⃣ UI
@@ -171,7 +176,8 @@ const MessagesPage = ({ activeConv, receiver }) => {
       {/* Header */}
       <div className="p-3 shadow flex items-center gap-3 bg-white">
         <img
-          src={receiver?.photoURL}
+          src={receiver?.photoURL || receiver?.image}
+          alt={receiver?.name}
           className="w-10 h-10 rounded-full border border-green-500"
         />
         <div>
@@ -188,14 +194,12 @@ const MessagesPage = ({ activeConv, receiver }) => {
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`my-2 flex ${
-              m.senderId === user.uid ? "justify-end" : "justify-start"
-            }`}
+            className={`my-2 flex ${m.senderId === user.uid ? "justify-end" : "justify-start"
+              }`}
           >
             <div
-              className={`p-2 rounded-lg max-w-xs ${
-                m.senderId === user.uid ? "bg-blue-200" : "bg-white"
-              }`}
+              className={`p-2 rounded-lg max-w-xs ${m.senderId === user.uid ? "bg-blue-200" : "bg-white"
+                }`}
             >
               <div>{m.text}</div>
 

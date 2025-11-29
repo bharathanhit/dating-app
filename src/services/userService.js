@@ -1,7 +1,6 @@
 import { db } from '../config/firebase.js';
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc } from 'firebase/firestore';
-import { storage } from '../config/firebase.js';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
 
 // Create or update user profile
 export const createUserProfile = async (userId, profileData) => {
@@ -56,7 +55,6 @@ export const getUserProfile = async (userId) => {
     throw error;
   }
 };
-
 // Update user profile
 export const updateUserProfile = async (userId, profileData) => {
   try {
@@ -198,43 +196,51 @@ export const getLikedProfiles = async (userId) => {
 };
 
 // Upload a profile image to Firebase Storage and return the download URL
-export const uploadProfileImage = (userId, file, onProgress) => {
+// Upload a profile image to Firebase Storage and return the download URL
+// Helper to compress image
+const compressImage = (file) => {
   return new Promise((resolve, reject) => {
-    try {
-      const timestamp = Date.now();
-      const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9.\-\_]/g, '_') : 'image';
-      const path = `profiles/${userId}/${timestamp}_${safeName}`;
-      const storageReference = storageRef(storage, path);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 500; // Limit width to 500px to keep size small
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
 
-      const uploadTask = uploadBytesResumable(storageReference, file);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          if (onProgress && typeof onProgress === 'function') onProgress(percent);
-        },
-        (error) => {
-          console.error('Upload failed', error);
-          reject(error);
-        },
-        async () => {
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
-          } catch (err) {
-            reject(err);
-          }
-        }
-      );
-    } catch (err) {
-      reject(err);
-    }
+        // Compress to JPEG at 0.7 quality
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
   });
 };
 
-
-
+// Process profile image (Compress & Convert to Base64) for Firestore storage
+export const uploadProfileImage = async (userId, file, onProgress) => {
+  try {
+    if (onProgress) onProgress(10);
+    
+    // Compress and convert to Base64 string
+    // We store the image string directly in Firestore since Storage is not available
+    const base64Image = await compressImage(file);
+    
+    if (onProgress) onProgress(100);
+    return base64Image;
+  } catch (err) {
+    console.error('Image processing failed', err);
+    throw err;
+  }
+};
 
 
 

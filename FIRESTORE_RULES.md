@@ -1,4 +1,4 @@
-# Firestore Security Rules Setup
+ # Firestore Security Rules Setup
 
 ## Issue
 Messages are not sending because Firestore security rules are preventing writes to the `conversations` collection.

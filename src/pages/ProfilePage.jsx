@@ -137,7 +137,11 @@ const ProfilePage = () => {
       setEditing(false);
     } catch (err) {
       console.error('Failed to save profile', err);
-      setError(err.message || 'Failed to save profile');
+      let msg = err.message || 'Failed to save profile';
+      if (msg.includes('Network Error') || msg.includes('network') || !msg) {
+        msg = 'Network error. If you are developing locally, this may be a CORS issue with Firebase Storage. Check the console for details.';
+      }
+      setError(msg);
     } finally {
       setLoading(false);
       setUploadProgress(0);

@@ -1,4 +1,4 @@
- // MessagesPage.jsx
+// MessagesPage.jsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
@@ -21,7 +21,15 @@ import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAuth } from "../context/AuthContext";
 import { getOrCreateConversation, listenForConversations } from "../services/chatServiceV2";
-import { listenForMessagesRealtime, sendMessageRealtime } from "../services/chatRealtimeService";
+import {
+  listenForMessagesRealtime,
+  sendMessageRealtime,
+  setTypingStatus,
+  listenForTyping,
+  markMessagesAsRead,
+  setUserOnline,
+  setUserOffline
+} from "../services/chatRealtimeService";
 import { getUserProfile } from "../services/userService";
 import { ref, onValue } from "firebase/database";
 import { realtimeDb } from "../config/firebase";
@@ -73,17 +81,17 @@ const MessagesPage = () => {
   const location = useLocation();
   const { user } = useAuth();
   const theme = useTheme();
-  const isMobile = useMediaQuery("(max-width:900px)");
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const [conversations, setConversations] = useState([]);
-  const [profileMap, setProfileMap] = useState({}); // uid -> profile
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [profileMap, setProfileMap] = useState({});
   const [status, setStatus] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Hide footer on this page
+  // Hide footer on mount, show on unmount
   useEffect(() => {
     const footer = document.querySelector("footer");
     if (footer) footer.style.display = "none";
@@ -124,7 +132,7 @@ const MessagesPage = () => {
           if (other && !profileMap[other]) {
             getUserProfile(other)
               .then((p) => setProfileMap((m) => ({ ...m, [other]: p || { uid: other } })))
-              .catch(() => {});
+              .catch(() => { });
           }
         });
       });
@@ -173,7 +181,7 @@ const MessagesPage = () => {
         if (normalizedMsg.senderId && !profileMap[normalizedMsg.senderId]) {
           getUserProfile(normalizedMsg.senderId)
             .then((p) => setProfileMap((m) => ({ ...m, [normalizedMsg.senderId]: p || { uid: normalizedMsg.senderId } })))
-            .catch(() => {});
+            .catch(() => { });
         }
       });
     } catch (err) {
@@ -198,7 +206,7 @@ const MessagesPage = () => {
     return () => {
       try {
         if (typeof off === "function") off();
-      } catch {}
+      } catch { }
     };
   }, [activeConv, user]);
 
@@ -246,9 +254,9 @@ const MessagesPage = () => {
         merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
         return merged;
       });
+      setText("");
 
       await sendMessageRealtime(activeConv.id, payload);
-      setText("");
     } catch (err) {
       console.error("sendMessageRealtime error:", err);
     }
@@ -281,15 +289,15 @@ const MessagesPage = () => {
   };
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#fff" }}>
+    <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>
       {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 2, borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>Messages</Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 2, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: "black" }}>Messages</Typography>
         {!isMobile && activeConv && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Avatar src={otherProfile?.image || ""} sx={{ width: 36, height: 36 }} />
             <Box>
-              <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", ...textStyle }}>
+              <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "black" }}>
                 {otherProfile?.name || otherUid || "Conversation"}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -303,7 +311,7 @@ const MessagesPage = () => {
       <Grid container sx={{ flex: 1, minHeight: 0 }}>
         {/* Conversations List */}
         {(!isMobile || (isMobile && mobileShowList)) && (
-          <Grid item xs={12} md={4} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto" }}>
+          <Grid item xs={12} md={4} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
             <Box sx={{ py: 1 }}>
               <List disablePadding>
                 {conversations.map((c) => {
@@ -319,6 +327,7 @@ const MessagesPage = () => {
                         </ListItemAvatar>
                         <ListItemText
                           primary={prof?.name || other || "User"}
+                          primaryTypographyProps={{ color: "black", fontWeight: 500 }}
                           secondary={c.lastMessage || ""}
                         />
                       </ListItem>
@@ -339,13 +348,13 @@ const MessagesPage = () => {
           <Grid item xs={12} md={8} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
             {/* Panel header for mobile (back + avatar + name) */}
             {isMobile && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)" }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
                 <IconButton onClick={() => { setActiveConv(null); setMobileShowList(true); }}>
                   <ArrowBackIcon />
                 </IconButton>
                 <Avatar src={otherProfile?.image || ""} />
                 <Box>
-                  <Typography sx={{ fontWeight: 600, ...textStyle }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
+                  <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>
                     {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
                   </Typography>
@@ -357,7 +366,7 @@ const MessagesPage = () => {
             <Box sx={{ flex: 1, overflowY: "auto", px: 2, py: 2, minHeight: 0 }}>
               {!activeConv ? (
                 <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Typography variant="body1" sx={{ color: "black" }}>
+                  <Typography variant="body1" sx={{ color: "text.secondary" }}>
                     Select a conversation to start chatting.
                   </Typography>
                 </Box>
@@ -367,7 +376,7 @@ const MessagesPage = () => {
                     <Box key={g.label}>
                       {/* date separator above the group's messages */}
                       <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
-                        <Typography variant="caption" sx={{ background: "rgba(0,0,0,0.02)", px: 2, py: 0.4, borderRadius: 20 }}>
+                        <Typography variant="caption" sx={{ background: "rgba(0,0,0,0.05)", color: "text.secondary", px: 2, py: 0.4, borderRadius: 20 }}>
                           {g.label}
                         </Typography>
                       </Box>
@@ -393,13 +402,13 @@ const MessagesPage = () => {
                                   py: 1,
                                   maxWidth: "78%",
                                   background: isMe ? IG_GRADIENT : "#fff",
-                                  color: isMe ? "#ffffffff" : "#111",
-                                  boxShadow: isMe ? "0 6px 20px rgba(74,0,224,0.12)" : "0 1px 3px rgba(0,0,0,0.06)",
-                                  border: isMe ? "none" : "1px solid rgba(0,0,0,0.04)",
+                                  color: isMe ? "#fff" : "#111",
+                                  boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",
+                                  border: isMe ? "none" : "none",
                                 }}
-                              > 
+                              >
                                 <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
-                                <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
+                                <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
                                   {formatTime(m.createdAt ?? m.timestamp)}
                                 </Typography>
                               </Box>
@@ -418,7 +427,7 @@ const MessagesPage = () => {
             </Box>
 
             {/* Input */}
-            <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center" }}>
+            <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center", bgcolor: "#fff" }}>
               <TextField
                 fullWidth
                 placeholder={activeConv ? `Message ${otherProfile?.name || ""}` : "Select a conversation"}
@@ -427,7 +436,14 @@ const MessagesPage = () => {
                 onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
                 disabled={!activeConv}
                 size="small"
-                sx={{ borderRadius: 3, background: "#fff" }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: 3,
+                    bgcolor: "#f0f2f5",
+                    "& fieldset": { border: "none" },
+                  },
+                  "& .MuiInputBase-input": { color: "#000" }
+                }}
               />
               <IconButton color="primary" disabled={!activeConv || !text.trim()} onClick={handleSend}>
                 <SendIcon />
@@ -440,4 +456,4 @@ const MessagesPage = () => {
   );
 };
 
-export default MessagesPage;           
+export default MessagesPage;

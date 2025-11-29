@@ -21,6 +21,7 @@ export const getOrCreateConversation = async (uidA, uidB, meta = {}) => {
 
     const data = {
       id: convId,
+      
       participants: [uidA, uidB],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -115,3 +116,5 @@ export const listenForMessages = (conversationId, onUpdate) => {
   });
   return unsub;
 };
+  
+
