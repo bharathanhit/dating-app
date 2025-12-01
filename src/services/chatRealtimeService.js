@@ -25,14 +25,26 @@ export const sendMessageRealtime = async (conversationId, messageObj) => {
   return newMsgRef.key;
 };
 
-// Listen for new messages in a conversation (returns unsubscribe function)
+// Listen for messages in a conversation (returns unsubscribe function)
+// This loads all existing messages and listens for new ones
 export const listenForMessagesRealtime = (conversationId, callback) => {
   const messagesRef = ref(realtimeDb, `conversations/${conversationId}/messages`);
-  const handler = onChildAdded(messagesRef, (snapshot) => {
-    callback({ id: snapshot.key, ...snapshot.val() });
+  const messages = [];
+
+  const childHandler = onChildAdded(messagesRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    const msg = { id: snapshot.key, ...data };
+    messages.push(msg);
+    // Sort messages by createdAt/timestamp to keep order
+    messages.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
+    callback([...messages]);
   });
-  // Return unsubscribe function
-  return () => off(messagesRef, 'child_added', handler);
+
+  // Return unsubscribe that detaches the listener
+  return () => {
+    off(messagesRef, 'child_added', childHandler);
+  };
 };
 
 // ==================== TYPING INDICATORS ====================

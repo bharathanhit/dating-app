@@ -1,5 +1,5 @@
 import { db } from '../config/firebase.js';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { ref, onValue, set } from 'firebase/database';
 import { realtimeDb } from '../config/firebase';
 
@@ -206,4 +206,26 @@ export const listenForLastMessages = (conversationId, onUpdate) => {
     unsub();
     console.log('[Chat] Stopped listening for last messages in:', conversationId);
   };
+};
+
+export const fetchOldConversations = async (userUid) => {
+  console.log('[Chat] Fetching old conversations for:', userUid);
+
+  if (!userUid) {
+    console.warn('[Chat] No userUid provided');
+    return [];
+  }
+
+  try {
+    const convsRef = collection(db, 'conversations');
+    const q = query(convsRef, where('participants', 'array-contains', userUid), orderBy('updatedAt', 'desc'));
+    const snap = await getDocs(q);
+
+    const conversations = snap.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+    console.log('[Chat] Fetched conversations:', conversations.length);
+    return conversations;
+  } catch (err) {
+    console.error('[Chat] fetchOldConversations error:', err.message);
+    return [];
+  }
 };

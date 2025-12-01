@@ -77,7 +77,7 @@ const groupMessagesByDate = (messages) => {
   return groups;
 };
 
-const MessagesPage = () => {
+const MessagesPageV2 = () => {
   const location = useLocation();
   const { user } = useAuth();
   const theme = useTheme();
@@ -100,146 +100,117 @@ const MessagesPage = () => {
     };
   }, []);
 
-  // auto-scroll on messages change
+  // Scroll to bottom of messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  // Set user online status
+  useEffect(() => {
+    if (user?.uid) {
+      setUserOnline(user.uid);
+      const handleOffline = () => setUserOffline(user.uid);
+      window.addEventListener("beforeunload", handleOffline);
+      return () => {
+        setUserOffline(user.uid);
+        window.removeEventListener("beforeunload", handleOffline);
+      };
+    }
+  }, [user?.uid]);
 
   // Listen for conversations
   useEffect(() => {
-    if (!user?.uid) {
-      // fallback sample or empty
-      setConversations([]);
-      return;
-    }
+    if (!user?.uid) return;
 
-    let unsub;
-    try {
-      unsub = listenForConversations(user.uid, (list) => {
-        const arr = Array.isArray(list) ? list : [];
-        // normalize items: ensure id and participants exist
-        const normalized = arr.map((c) => ({
-          id: c.id || c.conversationId || JSON.stringify(c),
-          participants: c.participants || c.users || [],
-          lastMessage: (c.lastMessage && (c.lastMessage.text || c.lastMessage)) || "",
-          raw: c,
-        }));
-        setConversations(normalized);
-
-        // prefetch profiles for other participants so avatars show immediately
-        normalized.forEach((c) => {
-          const other = (c.participants || []).find((id) => id !== user.uid) || c.participants?.[0];
-          if (other && !profileMap[other]) {
-            getUserProfile(other)
-              .then((p) => setProfileMap((m) => ({ ...m, [other]: p || { uid: other } })))
-              .catch(() => { });
-          }
-        });
+    const unsubscribe = listenForConversations(user.uid, (convs) => {
+      setConversations(convs);
+      // Fetch profiles for all participants in all conversations
+      const allParticipantIds = new Set();
+      convs.forEach((conv) => {
+        conv.participants.forEach((pId) => allParticipantIds.add(pId));
       });
-    } catch (err) {
-      console.error("listenForConversations threw:", err);
+      allParticipantIds.forEach(async (pId) => {
+        if (!profileMap[pId]) {
+          const profile = await getUserProfile(pId);
+          if (profile) {
+            setProfileMap((prev) => ({ ...prev, [pId]: profile }));
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, profileMap]);
+
+  // Handle initial conversation from location state (e.g., clicking "Message" on a profile)
+  useEffect(() => {
+    if (location.state?.recipientId && user?.uid) {
+      const recipientId = location.state.recipientId;
+      const findOrCreate = async () => {
+        const conv = await getOrCreateConversation(user.uid, recipientId);
+        setActiveConv(conv);
+        // Pre-fetch recipient profile if not already in map
+        if (!profileMap[recipientId]) {
+          const profile = await getUserProfile(recipientId);
+          if (profile) {
+            setProfileMap((prev) => ({ ...prev, [recipientId]: profile }));
+          }
+        }
+      };
+      findOrCreate();
     }
+  }, [location.state?.recipientId, user?.uid, profileMap]);
 
-    // handle url param open
-    const params = new URLSearchParams(location.search);
-    const targetUid = params.get("uid");
-    if (targetUid && targetUid !== user.uid) {
-      openConversationWith(targetUid).catch((e) => console.error(e));
-    }
-
-    return () => {
-      if (typeof unsub === "function") unsub();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  // Listen for messages for active conversation (realtime)
+  // Listen for messages in the active conversation
   useEffect(() => {
     if (!activeConv?.id) {
       setMessages([]);
       return;
     }
 
-    const convId = activeConv.id;
-    let unsubMessages;
-    try {
-      unsubMessages = listenForMessagesRealtime(convId, (msg) => {
-        if (!msg) return;
-        // support createdAt or timestamp
-        const normalizedMsg = {
-          ...msg,
-          createdAt: msg.createdAt ?? msg.timestamp ?? Date.now(),
-        };
-
-        setMessages((prev) => {
-          const merged = [...prev, normalizedMsg];
-          merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
-          return merged;
-        });
-
-        // prefetch sender profile if missing
-        if (normalizedMsg.senderId && !profileMap[normalizedMsg.senderId]) {
-          getUserProfile(normalizedMsg.senderId)
-            .then((p) => setProfileMap((m) => ({ ...m, [normalizedMsg.senderId]: p || { uid: normalizedMsg.senderId } })))
-            .catch(() => { });
-        }
-      });
-    } catch (err) {
-      console.error("listenForMessagesRealtime threw:", err);
-    }
-
-    return () => {
-      if (typeof unsubMessages === "function") unsubMessages();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConv, profileMap]);
-
-  // Fetch online status for active conversation's other participant
-  useEffect(() => {
-    if (!activeConv) return;
-    const other = (activeConv.participants || []).find((id) => id !== user?.uid);
-    if (!other) return;
-    const statusRef = ref(realtimeDb, `status/${other}`);
-    const off = onValue(statusRef, (snap) => {
-      setStatus(snap.val());
+    const unsubscribe = listenForMessagesRealtime(activeConv.id, (newMessages) => {
+      setMessages(newMessages);
+      // Mark messages as read when they are loaded
+      if (user?.uid) {
+        markMessagesAsRead(activeConv.id, user.uid);
+      }
     });
-    return () => {
-      try {
-        if (typeof off === "function") off();
-      } catch { }
-    };
-  }, [activeConv, user]);
 
-  // open conversation with other uid (existing conv or create)
-  const openConversationWith = async (otherUid) => {
-    if (!user?.uid) return;
-    try {
-      const conv = await getOrCreateConversation(user.uid, otherUid);
-      if (!conv) throw new Error("No conversation");
-      // fetch other profile
-      const prof = await getUserProfile(otherUid);
-      setProfileMap((m) => ({ ...m, [otherUid]: prof || { uid: otherUid } }));
-      // set active conv, attach otherUid for header convenience
-      const enriched = {
-        ...conv,
-        otherUid,
-      };
-      setActiveConv(enriched);
-      setMessages([]); // will be filled by realtime listener
-    } catch (err) {
-      console.error("openConversationWith failed:", err);
+    return () => unsubscribe();
+  }, [activeConv?.id, user?.uid]);
+
+  // Listen for other user's online status and last seen
+  useEffect(() => {
+    if (!activeConv || !user?.uid) {
+      setStatus(null);
+      return;
     }
+
+    const otherUid = activeConv.participants.find((id) => id !== user.uid);
+    if (!otherUid) {
+      setStatus(null);
+      return;
+    }
+
+    const statusRef = ref(realtimeDb, `status/${otherUid}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const data = snapshot.val();
+      setStatus(data);
+    });
+
+    return () => unsubscribe();
+  }, [activeConv, user?.uid]);
+
+  const startWithUser = async (recipientId) => {
+    if (!user?.uid) return;
+    const conv = await getOrCreateConversation(user.uid, recipientId);
+    setActiveConv(conv);
   };
 
-  // start with user from list
-  const startWithUser = async (uid) => {
-    await openConversationWith(uid);
-  };
-
-  // send message (writes to realtime via service)
   const handleSend = async () => {
-    if (!text.trim()) return;
-    if (!activeConv?.id) return;
+    if (!text.trim() || !activeConv?.id || !user?.uid) return;
 
     const payload = {
       senderId: user.uid,
@@ -456,4 +427,4 @@ const MessagesPage = () => {
   );
 };
 
-export default MessagesPage;
+export default MessagesPageV2;
