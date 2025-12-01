@@ -3,12 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getUserProfile } from '../services/userService';
 import { Box, Container, Typography, Avatar, Chip, Button, CircularProgress } from '@mui/material';
 
+import { ref, onValue } from 'firebase/database';
+import { realtimeDb } from '../config/firebase';
+
 const PublicProfilePage = () => {
   const { uid } = useParams();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -23,6 +27,15 @@ const PublicProfilePage = () => {
         setError('Failed to load profile');
       })
       .finally(() => setLoading(false));
+
+    // Listen for online status
+    const statusRef = ref(realtimeDb, `status/${uid}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const data = snapshot.val();
+      setIsOnline(data?.online || false);
+    });
+
+    return () => unsubscribe();
   }, [uid]);
 
   if (loading) return <Container sx={{ pt: 4 }}><CircularProgress /></Container>;
@@ -34,7 +47,23 @@ const PublicProfilePage = () => {
   return (
     <Container maxWidth="md" sx={{ pt: 4, pb: { xs: 10, sm: 6 } }}>
       <Box display="flex" gap={3} alignItems="center" mb={2}>
-        <Avatar src={profile.image || profile.avatar} sx={{ width: 120, height: 120 }} />
+        <Box sx={{ position: 'relative' }}>
+          <Avatar src={profile.image || profile.avatar} sx={{ width: 120, height: 120 }} />
+          {isOnline && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                width: 20,
+                height: 20,
+                borderRadius: '50%',
+                bgcolor: '#00e676',
+                border: '3px solid white',
+              }}
+            />
+          )}
+        </Box>
         <Box>
           <Typography variant="h4">{profile.name} {age ? `, ${age}` : ''}</Typography>
           {profile.location && <Typography color="text.secondary">{profile.location}</Typography>}

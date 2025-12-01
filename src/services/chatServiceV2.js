@@ -87,7 +87,7 @@ export const listenForConversations = (userUid, onUpdate) => {
 
   try {
     const convsRef = collection(db, 'conversations');
-    const q = query(convsRef, orderBy('updatedAt', 'desc'));
+    const q = query(convsRef, where('participants', 'array-contains', userUid));
     
     const unsub = onSnapshot(
       q,
@@ -100,6 +100,13 @@ export const listenForConversations = (userUid, onUpdate) => {
             list.push({ id: docSnap.id, ...data });
           }
         });
+        // Client-side sort to avoid index requirement
+        list.sort((a, b) => {
+          const tA = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : (a.updatedAt || 0);
+          const tB = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : (b.updatedAt || 0);
+          return tB - tA;
+        });
+        
         console.log('[Chat] Conversations update:', list.length, 'convs');
         onUpdate(list);
       },
@@ -229,3 +236,19 @@ export const fetchOldConversations = async (userUid) => {
     return [];
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

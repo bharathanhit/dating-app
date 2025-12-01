@@ -1,4 +1,3 @@
-// MessagesPage.jsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
@@ -24,8 +23,6 @@ import { getOrCreateConversation, listenForConversations } from "../services/cha
 import {
   listenForMessagesRealtime,
   sendMessageRealtime,
-  setTypingStatus,
-  listenForTyping,
   markMessagesAsRead,
   setUserOnline,
   setUserOffline
@@ -33,6 +30,7 @@ import {
 import { getUserProfile } from "../services/userService";
 import { ref, onValue } from "firebase/database";
 import { realtimeDb } from "../config/firebase";
+import { getValidImageUrl } from "../utils/imageUtils";
 
 const IG_GRADIENT = "linear-gradient(135deg, #754bffff 0%, #7f0f98ff 100%)";
 
@@ -265,11 +263,6 @@ const MessagesPageV2 = () => {
     if (isMobile && activeConv) setMobileShowList(false);
   }, [isMobile, activeConv]);
 
-  // Updated text color to black for better readability
-  const textStyle = {
-    color: 'black',
-  };
-
   return (
     <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>
       {/* Header */}
@@ -277,7 +270,7 @@ const MessagesPageV2 = () => {
         <Typography variant="h6" sx={{ fontWeight: 700, color: "black" }}>Messages</Typography>
         {!isMobile && activeConv && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Avatar src={otherProfile?.image || ""} sx={{ width: 36, height: 36 }} />
+            <Avatar src={getValidImageUrl(otherProfile?.image)} sx={{ width: 36, height: 36 }} />
             <Box>
               <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "black" }}>
                 {otherProfile?.name || otherUid || "Conversation"}
@@ -303,8 +296,8 @@ const MessagesPageV2 = () => {
                     <Box key={c.id}>
                       <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2 }}>
                         <ListItemAvatar>
-                          <Avatar src={prof?.image || ""}>
-                            {!prof?.image ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
+                          <Avatar src={getValidImageUrl(prof?.image)}>
+                            {!getValidImageUrl(prof?.image) ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
                           </Avatar>
                         </ListItemAvatar>
                         <ListItemText
@@ -334,7 +327,7 @@ const MessagesPageV2 = () => {
                 <IconButton onClick={() => { setActiveConv(null); setMobileShowList(true); }}>
                   <ArrowBackIcon />
                 </IconButton>
-                <Avatar src={otherProfile?.image || ""} />
+                <Avatar src={getValidImageUrl(otherProfile?.image)} />
                 <Box>
                   <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -371,7 +364,7 @@ const MessagesPageV2 = () => {
                             {/* avatar for incoming */}
                             <Box sx={{ width: 44, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
                               {!isMe ? (
-                                <Avatar src={(senderProfile && senderProfile.image) || otherProfile?.image || ""} sx={{ width: 36, height: 36 }} />
+                                <Avatar src={getValidImageUrl((senderProfile && senderProfile.image) || otherProfile?.image)} sx={{ width: 36, height: 36 }} />
                               ) : <Box sx={{ width: 36 }} />}
                             </Box>
 

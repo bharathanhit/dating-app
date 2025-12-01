@@ -57,7 +57,7 @@ const LikesPage = () => {
             <Box sx={{ flex: 1, minWidth: 0 }} onClick={() => navigate(`/profile/${p.uid}`)} style={{ cursor: 'pointer' }}>
               <Typography variant="subtitle1" sx={{ color: '#222', fontWeight: 700, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{p.name || 'Unknown'}</Typography>
             </Box>
-            <IconButton edge="end" onClick={() => navigate('/messages', { state: { recipientUid: p.uid, recipientName: p.name } })} aria-label={`message ${p.name}`} size="medium">
+            <IconButton edge="end" onClick={() => navigate('/messagesv2', { state: { recipientId: p.uid, recipientName: p.name } })} aria-label={`message ${p.name}`} size="medium">
               <ChatBubble sx={{ color: '#7a2fff' }} />
             </IconButton>
             <IconButton edge="end" onClick={() => handleUnlike(p.uid)} aria-label={`unlike ${p.name}`} size="medium">

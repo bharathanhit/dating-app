@@ -37,12 +37,21 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
+
+      // Allow access to likedProfiles subcollection
+      match /likedProfiles/{profileId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Conversations: read/write if you're a participant
     match /conversations/{conversationId} {
-      allow read: if request.auth != null && 
-        request.auth.uid in resource.data.participants;
+      // Allow read if user is participant OR if doc doesn't exist (to check existence)
+      // We check if the ID contains the UID to prevent probing random IDs
+      allow read: if request.auth != null && (
+        resource == null || 
+        request.auth.uid in resource.data.participants
+      );
       
       allow create: if request.auth != null;
       

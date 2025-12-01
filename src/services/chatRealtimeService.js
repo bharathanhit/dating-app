@@ -1,11 +1,12 @@
 // src/services/chatRealtimeService.js
 // Chat service using Firebase Realtime Database for messages
 
-import { ref, push, onChildAdded, off, set, onValue, update, serverTimestamp } from 'firebase/database';
+import { ref, push, onChildAdded, off, set, onValue, update, serverTimestamp, onDisconnect } from 'firebase/database';
 import { realtimeDb } from '../config/firebase'; // Use shared instance
 
 // Send a chat message to a conversation
 export const sendMessageRealtime = async (conversationId, messageObj) => {
+  console.log('[ChatRealtime] Sending message to conversation:', conversationId, messageObj);
   const messagesRef = ref(realtimeDb, `conversations/${conversationId}/messages`);
   const newMsgRef = await push(messagesRef, {
     ...messageObj,
@@ -13,6 +14,8 @@ export const sendMessageRealtime = async (conversationId, messageObj) => {
     read: false,
     delivered: true,
   });
+  
+  console.log('[ChatRealtime] Message sent with key:', newMsgRef.key);
   
   // Update last message in conversation
   const lastMsgRef = ref(realtimeDb, `conversations/${conversationId}/lastMessage`);
@@ -22,27 +25,32 @@ export const sendMessageRealtime = async (conversationId, messageObj) => {
     timestamp: Date.now(),
   });
   
+  console.log('[ChatRealtime] Last message updated');
   return newMsgRef.key;
 };
 
 // Listen for messages in a conversation (returns unsubscribe function)
 // This loads all existing messages and listens for new ones
 export const listenForMessagesRealtime = (conversationId, callback) => {
+  console.log('[ChatRealtime] Setting up listener for conversation:', conversationId);
   const messagesRef = ref(realtimeDb, `conversations/${conversationId}/messages`);
   const messages = [];
 
   const childHandler = onChildAdded(messagesRef, (snapshot) => {
     const data = snapshot.val();
+    console.log('[ChatRealtime] Message received:', snapshot.key, data);
     if (!data) return;
     const msg = { id: snapshot.key, ...data };
     messages.push(msg);
     // Sort messages by createdAt/timestamp to keep order
     messages.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
+    console.log('[ChatRealtime] Total messages now:', messages.length);
     callback([...messages]);
   });
 
   // Return unsubscribe that detaches the listener
   return () => {
+    console.log('[ChatRealtime] Unsubscribing from conversation:', conversationId);
     off(messagesRef, 'child_added', childHandler);
   };
 };
@@ -138,7 +146,13 @@ export const setUserOnline = async (userId) => {
     updatedAt: Date.now(),
   });
   
-  // Note: onDisconnect requires special setup, handle in component
+  // Handle disconnect automatically
+  const onDisconnectRef = onDisconnect(statusRef);
+  await onDisconnectRef.set({
+    online: false,
+    lastSeen: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
 };
 
 // Set user as offline

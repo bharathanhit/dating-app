@@ -5,10 +5,25 @@ import { useAuth } from '../context/AuthContext';
 import { addLikedProfile, removeLikedProfile } from '../services/userService';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+import { ref, onValue } from 'firebase/database';
+import { realtimeDb } from '../config/firebase';
+import { useState, useEffect } from 'react';
+
 const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
   const { user, refreshProfile, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isOnline, setIsOnline] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.uid) return;
+    const statusRef = ref(realtimeDb, `status/${profile.uid}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const data = snapshot.val();
+      setIsOnline(data?.online || false);
+    });
+    return () => unsubscribe();
+  }, [profile?.uid]);
 
   const handleLike = async () => {
     try {
@@ -57,15 +72,33 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
         position: 'relative',
       }}
     >
-      <CardMedia
-        component="img"
-        sx={{
-          height: { xs: 250, sm: 350, md: 400 },
-          objectFit: 'cover',
-        }}
-        image={profile.image || 'https://via.placeholder.com/600x400'}
-        alt={profile.name}
-      />
+      <Box sx={{ position: 'relative' }}>
+        <CardMedia
+          component="img"
+          sx={{
+            height: { xs: 250, sm: 350, md: 400 },
+            objectFit: 'cover',
+          }}
+          image={profile.image || 'https://via.placeholder.com/600x400'}
+          alt={profile.name}
+        />
+        {isOnline && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 16,
+              left: 16,
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              bgcolor: '#00e676',
+              border: '2px solid white',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 1,
+            }}
+          />
+        )}
+      </Box>
       <CardContent sx={{ p: { xs: 1.5, sm: 2 }, position: 'relative' }}>
         {/* Premium Message Button */}
         <Tooltip title="Message" placement="left">
