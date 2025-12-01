@@ -1,0 +1,43 @@
+--- a/src/pages/MessagesPageV2.jsx
++++ b/src/pages/MessagesPageV2.jsx
+@@ -163,24 +163,18 @@
+     const convId = activeConv.id;
+     let unsubMessages;
+     try {
+-      unsubMessages = listenForMessagesRealtime(convId, (msg) => {
+-        if (!msg) return;
+-        // support createdAt or timestamp
+-        const normalizedMsg = {
+-          ...msg,
+-          createdAt: msg.createdAt ?? msg.timestamp ?? Date.now(),
+-        };
+-
+-        setMessages((prev) => {
+-          const merged = [...prev, normalizedMsg];
+-          merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
+-          return merged;
++      unsubMessages = listenForMessagesRealtime(convId, (messagesArray) => {
++        const normalizedMessages = (Array.isArray(messagesArray) ? messagesArray : []).map(msg => ({
++          ...msg,
++          createdAt: msg.createdAt ?? msg.timestamp ?? Date.now(),
++        }));
++
++        normalizedMessages.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
++        setMessages(normalizedMessages);
++
++        normalizedMessages.forEach(msg => {
++          if (msg.senderId && !profileMap[msg.senderId]) {
++            getUserProfile(msg.senderId)
++              .then((p) => setProfileMap((m) => ({ ...m, [msg.senderId]: p || { uid: msg.senderId } })))
++              .catch(() => { });
++          }
+         });
+-
+-        // prefetch sender profile if missing
+-        if (normalizedMsg.senderId && !profileMap[normalizedMsg.senderId]) {
+-          getUserProfile(normalizedMsg.senderId)
+-            .then((p) => setProfileMap((m) => ({ ...m, [normalizedMsg.senderId]: p || { uid: normalizedMsg.senderId } })))
+-            .catch(() => { });
+-        }
+       });
+     } catch (err) {

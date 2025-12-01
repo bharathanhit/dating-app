@@ -1,4 +1,4 @@
- import { Box, IconButton, Typography } from "@mui/material";
+import { Box, IconButton, Typography } from "@mui/material";
 import { Home, Favorite, Person, ChatBubble, Chat } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +9,7 @@ const Footer = () => {
 
   return (
     <Box
+      id="app-footer"
       sx={{
         position: "fixed",
         bottom: 0,
@@ -56,7 +57,7 @@ const Footer = () => {
           },
         }}
         // Leave this for future feature (random connect)
-        onClick={() => {/* future: navigate to random connect page */}}
+        onClick={() => {/* future: navigate to random connect page */ }}
       >
         {/* Chat icon */}
         <ChatBubble

@@ -74,8 +74,9 @@ export const updateUserProfile = async (userId, profileData) => {
 export const getAllUserProfiles = async (excludeUid = null) => {
   try {
     const usersCol = collection(db, 'users');
-    // Order by createdAt desc
-    const q = query(usersCol, orderBy('createdAt', 'desc'));
+    // Order by createdAt desc - REMOVED temporarily to debug guest access
+    // const q = query(usersCol, orderBy('createdAt', 'desc'));
+    const q = query(usersCol);
     const snapshot = await getDocs(q);
     const profiles = [];
     snapshot.forEach((docSnap) => {

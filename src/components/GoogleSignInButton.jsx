@@ -1,7 +1,7 @@
 import { Button, Box, CircularProgress } from '@mui/material';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const GoogleSignInButton = ({ variant = 'contained', fullWidth = false }) => {
   const { signInWithGoogle } = useAuth();
@@ -9,13 +9,16 @@ const GoogleSignInButton = ({ variant = 'contained', fullWidth = false }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
+  const location = useLocation();
+
   const handleGoogleSignIn = async () => {
     setError('');
     setLoading(true);
 
     try {
       await signInWithGoogle();
-      navigate('/onboarding'); // Redirect to onboarding after successful sign in
+      const from = location.state?.from || '/onboarding';
+      navigate(from);
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');
     } finally {

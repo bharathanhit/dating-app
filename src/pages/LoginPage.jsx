@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert, Divider } from '@mui/material';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import GoogleSignInButton from '../components/GoogleSignInButton.jsx';
 
@@ -11,6 +11,7 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
+  const location = useLocation();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +26,8 @@ const LoginPage = () => {
       }
 
       await login(email, password);
-      navigate('/onboarding'); // Redirect to onboarding after successful login
+      const from = location.state?.from || '/onboarding';
+      navigate(from);
     } catch (err) {
       setError(err.message || 'Failed to sign in. Please try again.');
     } finally {

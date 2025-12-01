@@ -33,8 +33,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Allow authenticated users to read/write their own user document
+    // AND allow PUBLIC read access to all user profiles (for Home page)
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Conversations: read/write if you're a participant

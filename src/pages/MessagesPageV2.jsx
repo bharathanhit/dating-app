@@ -34,7 +34,7 @@ import { getUserProfile } from "../services/userService";
 import { ref, onValue } from "firebase/database";
 import { realtimeDb } from "../config/firebase";
 
-const IG_GRADIENT = "linear-gradient(135deg,#8e2de2 0%,#4a00e0 50%,#ff5fa2 100%)";
+const IG_GRADIENT = "linear-gradient(135deg, #754bffff 0%, #7f0f98ff 100%)";
 
 const formatTime = (ts) => {
   if (!ts) return "";
@@ -91,14 +91,25 @@ const MessagesPageV2 = () => {
   const [status, setStatus] = useState(null);
   const messagesEndRef = useRef(null);
 
-  // Hide footer on mount, show on unmount
+  // Hide footer when a conversation is active
   useEffect(() => {
-    const footer = document.querySelector("footer");
-    if (footer) footer.style.display = "none";
+    const footer = document.getElementById("app-footer");
+    const appContainer = document.querySelector(".app");
+
+    if (activeConv) {
+      if (footer) footer.style.display = "none";
+      if (appContainer) appContainer.style.paddingBottom = "0";
+    } else {
+      if (footer) footer.style.display = "flex";
+      if (appContainer) appContainer.style.paddingBottom = ""; // Restore default from CSS
+    }
+
     return () => {
-      if (footer) footer.style.display = "block";
+      // Cleanup: ensure footer is visible when leaving the component
+      if (footer) footer.style.display = "flex";
+      if (appContainer) appContainer.style.paddingBottom = "";
     };
-  }, []);
+  }, [activeConv]);
 
   // Scroll to bottom of messages
   useEffect(() => {
@@ -282,7 +293,7 @@ const MessagesPageV2 = () => {
       <Grid container sx={{ flex: 1, minHeight: 0 }}>
         {/* Conversations List */}
         {(!isMobile || (isMobile && mobileShowList)) && (
-          <Grid item xs={12} md={4} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
+          <Grid item xs={12} md={3} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
             <Box sx={{ py: 1 }}>
               <List disablePadding>
                 {conversations.map((c) => {
@@ -316,7 +327,7 @@ const MessagesPageV2 = () => {
 
         {/* Chat Panel */}
         {(!isMobile || (isMobile && !mobileShowList)) && (
-          <Grid item xs={12} md={8} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
+          <Grid item xs={12} md={9} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
             {/* Panel header for mobile (back + avatar + name) */}
             {isMobile && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
@@ -368,10 +379,10 @@ const MessagesPageV2 = () => {
                             <Box sx={{ flex: 1, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
                               <Box
                                 sx={{
-                                  borderRadius: 20,
+                                  borderRadius: "18px",
                                   px: 2,
                                   py: 1,
-                                  maxWidth: "78%",
+                                  maxWidth: "85%",
                                   background: isMe ? IG_GRADIENT : "#fff",
                                   color: isMe ? "#fff" : "#111",
                                   boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",

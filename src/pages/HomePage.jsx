@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Grid, Box, Typography, CircularProgress, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ProfileCard from '../components/ProfileCard.jsx';
@@ -11,6 +12,8 @@ const HomePage = () => {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Responsive: enable swipe only on mobile
   const theme = useTheme();
@@ -72,7 +75,7 @@ const HomePage = () => {
         setProfiles(mapped);
       } catch (err) {
         console.error('Failed to load profiles', err);
-        setError('Failed to load profiles');
+        setError(err.message || 'Failed to load profiles');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -96,7 +99,12 @@ const HomePage = () => {
 
   return (
     <Container maxWidth={isMobile ? 'sm' : 'lg'} sx={{ pb: { xs: 12, sm: 10 }, minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {profiles.length === 0 ? (
+      {error ? (
+        <Box sx={{ textAlign: 'center', py: 6 }}>
+          <Typography variant="h6" color="error">Error loading profiles</Typography>
+          <Typography variant="body2" color="text.secondary">{error}</Typography>
+        </Box>
+      ) : profiles.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 6 }}>
           <Typography variant="h6">No profiles yet</Typography>
           <Typography variant="body2" color="text.secondary">Be the first to complete your profile.</Typography>
@@ -117,14 +125,21 @@ const HomePage = () => {
                   background: swipeStatuses[idx] === 'liked'
                     ? 'rgba(0, 255, 0, 0.1)'
                     : swipeStatuses[idx] === 'passed'
-                    ? 'rgba(255, 0, 0, 0.1)'
-                    : 'transparent',
+                      ? 'rgba(255, 0, 0, 0.1)'
+                      : 'transparent',
                   borderRadius: 16,
                   overflow: 'hidden',
                   rotate: swipeStatuses[idx] === 'liked' ? 15 : swipeStatuses[idx] === 'passed' ? -15 : 0,
                 }}
                 whileTap={{ scale: 0.97 }}
                 onDragEnd={(e, info) => {
+                  if (!user) {
+                    // Reset position if not logged in
+                    // We can't easily reset the drag position imperatively with simple framer-motion drag
+                    // But we can redirect. The card might stay dragged until unmount or refresh, but redirect happens fast.
+                    navigate('/login', { state: { from: location.pathname } });
+                    return;
+                  }
                   if (info.offset.x > 120) {
                     setSwipeStatuses((prev) => prev.map((s, i) => i === idx ? 'liked' : s));
                     setTimeout(() => {
@@ -203,8 +218,8 @@ const HomePage = () => {
                     borderColor: swipeStatuses[idx] === 'liked'
                       ? 'rgba(0, 255, 0, 0.5)'
                       : swipeStatuses[idx] === 'passed'
-                      ? 'rgba(255, 0, 0, 0.5)'
-                      : 'rgba(0,0,0,0.1)',
+                        ? 'rgba(255, 0, 0, 0.5)'
+                        : 'rgba(0,0,0,0.1)',
                     borderRadius: '16px',
                     overflow: 'hidden',
                     background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)',
