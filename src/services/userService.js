@@ -1,5 +1,5 @@
 import { db } from '../config/firebase.js';
-import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 
 // Create or update user profile
@@ -162,6 +162,19 @@ export const addLikedProfile = async (userId, likedProfile) => {
       image: likedProfile.image || null,
       createdAt: serverTimestamp(),
     });
+
+    // ALSO add to the target user's "likedBy" subcollection so they know they were liked
+    const likedByRef = doc(collection(db, 'users', likedProfile.uid, 'likedBy'), userId);
+    console.log(`[addLikedProfile] Adding to likedBy: path=users/${likedProfile.uid}/likedBy/${userId}`);
+    
+    await setDoc(likedByRef, {
+      uid: userId,
+      createdAt: serverTimestamp(),
+      // We can add a "viewed" flag for notifications
+      viewed: false
+    });
+    console.log(`[addLikedProfile] Successfully added to likedBy`);
+
     // Optionally, update user's updatedAt
     await updateDoc(doc(db, 'users', userId), { updatedAt: serverTimestamp() });
     return true;
@@ -176,6 +189,11 @@ export const removeLikedProfile = async (userId, likedProfileUid) => {
   try {
     const likedProfileRef = doc(collection(db, 'users', userId, 'likedProfiles'), likedProfileUid);
     await deleteDoc(likedProfileRef);
+
+    // ALSO remove from the target user's "likedBy" subcollection
+    const likedByRef = doc(collection(db, 'users', likedProfileUid, 'likedBy'), userId);
+    await deleteDoc(likedByRef);
+
     // Optionally, update user's updatedAt
     await updateDoc(doc(db, 'users', userId), { updatedAt: serverTimestamp() });
     return true;
@@ -193,6 +211,80 @@ export const getLikedProfiles = async (userId) => {
   } catch (error) {
     console.error('Error fetching liked profiles:', error);
     return [];
+  }
+};
+
+// Get profiles who liked the current user
+export const getLikedByProfiles = async (userId) => {
+  try {
+    console.log(`[getLikedByProfiles] Fetching for user ${userId}`);
+    const likedByCol = collection(db, 'users', userId, 'likedBy');
+    const snapshot = await getDocs(likedByCol);
+    
+    console.log(`[getLikedByProfiles] Found ${snapshot.size} docs in likedBy`);
+    
+    // The likedBy docs might only contain { uid, createdAt }. 
+    // We need to fetch the full profiles for these users to display them.
+    const likedByData = snapshot.docs.map(doc => doc.data());
+    
+    if (likedByData.length === 0) return [];
+
+    // Fetch full profiles
+    // Ideally use a "where in" query if list is small, or individual fetches.
+    // "where in" supports up to 10. Let's do individual fetches for now or Promise.all
+    const profiles = await Promise.all(likedByData.map(async (item) => {
+      try {
+        const profile = await getUserProfile(item.uid);
+        return { ...profile, likedAt: item.createdAt };
+      } catch (e) {
+        console.error(`Failed to fetch profile for ${item.uid}`, e);
+        return null;
+      }
+    }));
+
+    return profiles.filter(p => p !== null);
+  } catch (error) {
+    console.error('Error fetching likedBy profiles:', error);
+    return [];
+  }
+};
+
+// Subscribe to profiles who liked the current user (Real-time)
+export const subscribeToLikedBy = (userId, callback) => {
+  try {
+    const likedByCol = collection(db, 'users', userId, 'likedBy');
+    // Listen for changes
+    const unsubscribe = onSnapshot(likedByCol, async (snapshot) => {
+      const likedByData = snapshot.docs.map(doc => doc.data());
+      
+      if (likedByData.length === 0) {
+        callback([]);
+        return;
+      }
+
+      // Fetch full profiles
+      // Note: This might trigger multiple fetches if many updates happen. 
+      // For a production app, we might want to cache profiles or only fetch new ones.
+      const profiles = await Promise.all(likedByData.map(async (item) => {
+        try {
+          const profile = await getUserProfile(item.uid);
+          return { ...profile, likedAt: item.createdAt };
+        } catch (e) {
+          console.error(`Failed to fetch profile for ${item.uid}`, e);
+          return null;
+        }
+      }));
+
+      callback(profiles.filter(p => p !== null));
+    }, (error) => {
+      console.error('Error subscribing to likedBy:', error);
+      callback([]);
+    });
+
+    return unsubscribe;
+  } catch (error) {
+    console.error('Error setting up likedBy subscription:', error);
+    return () => {};
   }
 };
 

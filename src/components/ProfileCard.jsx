@@ -108,7 +108,8 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
                 navigate('/login', { state: { from: location.pathname } });
                 return;
               }
-              navigate(`/messagesv2?uid=${profile.uid}`);
+              const targetUid = profile.uid || profile.id;
+              navigate(`/messagesv2?uid=${targetUid}`);
             }}
             sx={{
               position: 'absolute',

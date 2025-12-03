@@ -1,13 +1,29 @@
-import { useState } from 'react';
-import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider } from '@mui/material';
-import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon } from '@mui/icons-material';
+import { useState, useEffect } from 'react';
+import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider, Badge } from '@mui/material';
+import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { subscribeToLikedBy } from '../services/userService';
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [likeCount, setLikeCount] = useState(0);
+
+  useEffect(() => {
+    let unsubscribe = () => { };
+
+    if (user?.uid) {
+      unsubscribe = subscribeToLikedBy(user.uid, (profiles) => {
+        setLikeCount(profiles.length);
+      });
+    }
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.uid]);
 
   const handleLogout = async () => {
     try {
@@ -20,9 +36,16 @@ const Navbar = () => {
   };
 
   const navItems = [
-    
-  
     { text: 'Messages', to: '/messages', icon: <Message /> },
+    {
+      text: 'Who Liked Me',
+      to: '/who-liked-me',
+      icon: (
+        <Badge badgeContent={likeCount} color="error">
+          <Notifications />
+        </Badge>
+      )
+    },
     { text: 'Profile', to: '/profile', icon: <Person /> },
   ];
 
@@ -48,9 +71,13 @@ const Navbar = () => {
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
             {user ? (
               <>
-            
                 <IconButton component={Link} to="/messages" color="inherit" aria-label="messages" title="Messages">
                   <Message />
+                </IconButton>
+                <IconButton component={Link} to="/who-liked-me" color="inherit" aria-label="who liked me" title="Who Liked Me">
+                  <Badge badgeContent={likeCount} color="error">
+                    <Notifications />
+                  </Badge>
                 </IconButton>
                 <IconButton component={Link} to="/profile" color="inherit" aria-label="profile" title="Profile">
                   <Person />
@@ -147,3 +174,6 @@ const Navbar = () => {
 };
 
 export default Navbar;
+
+
+

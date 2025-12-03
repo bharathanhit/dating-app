@@ -153,24 +153,46 @@ const MessagesPageV2 = () => {
     return () => unsubscribe();
   }, [user?.uid, profileMap]);
 
-  // Handle initial conversation from location state (e.g., clicking "Message" on a profile)
+  // Handle initial conversation from location state OR query param
   useEffect(() => {
-    if (location.state?.recipientId && user?.uid) {
-      const recipientId = location.state.recipientId;
+    const searchParams = new URLSearchParams(location.search);
+    const queryUid = searchParams.get("uid");
+    let recipientId = location.state?.recipientId || queryUid;
+
+    // Validate recipientId
+    if (recipientId === "undefined" || recipientId === "null") {
+      recipientId = null;
+    }
+
+    console.log('[MessagesPageV2] Init check:', {
+      queryUid,
+      stateRecipient: location.state?.recipientId,
+      finalRecipientId: recipientId,
+      myUid: user?.uid
+    });
+
+    if (recipientId && user?.uid) {
       const findOrCreate = async () => {
-        const conv = await getOrCreateConversation(user.uid, recipientId);
-        setActiveConv(conv);
-        // Pre-fetch recipient profile if not already in map
-        if (!profileMap[recipientId]) {
-          const profile = await getUserProfile(recipientId);
-          if (profile) {
-            setProfileMap((prev) => ({ ...prev, [recipientId]: profile }));
+        try {
+          console.log('[MessagesPageV2] Calling getOrCreateConversation...');
+          const conv = await getOrCreateConversation(user.uid, recipientId);
+          console.log('[MessagesPageV2] Conversation result:', conv);
+          setActiveConv(conv);
+
+          // Pre-fetch recipient profile if not already in map
+          if (!profileMap[recipientId]) {
+            const profile = await getUserProfile(recipientId);
+            if (profile) {
+              setProfileMap((prev) => ({ ...prev, [recipientId]: profile }));
+            }
           }
+        } catch (err) {
+          console.error('[MessagesPageV2] Failed to get/create conversation:', err);
         }
       };
       findOrCreate();
     }
-  }, [location.state?.recipientId, user?.uid, profileMap]);
+  }, [location.state?.recipientId, location.search, user?.uid, profileMap]);
 
   // Listen for messages in the active conversation
   useEffect(() => {
@@ -183,7 +205,14 @@ const MessagesPageV2 = () => {
       setMessages(newMessages);
       // Mark messages as read when they are loaded
       if (user?.uid) {
-        markMessagesAsRead(activeConv.id, user.uid);
+        // Filter for unread messages sent by the other user
+        const unreadIds = newMessages
+          .filter(m => !m.read && m.senderId !== user.uid)
+          .map(m => m.id);
+
+        if (unreadIds.length > 0) {
+          markMessagesAsRead(activeConv.id, unreadIds, user.uid);
+        }
       }
     });
 

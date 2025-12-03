@@ -12,6 +12,7 @@ import OnboardingPage from './pages/OnboardingPage.jsx';
 import MessagesPageV2 from './pages/MessagesPageV2.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import LikesPage from './pages/LikesPage.jsx';
+import WhoLikedMePage from './pages/WhoLikedMePage.jsx';
 import PublicProfilePage from './pages/PublicProfilePage.jsx';
 import './App.css';
 
@@ -67,6 +68,14 @@ const App = () => {
                   element={
                     <ProtectedOnboardingRoute>
                       <LikesPage />
+                    </ProtectedOnboardingRoute>
+                  }
+                />
+                <Route
+                  path="/who-liked-me"
+                  element={
+                    <ProtectedOnboardingRoute>
+                      <WhoLikedMePage />
                     </ProtectedOnboardingRoute>
                   }
                 />

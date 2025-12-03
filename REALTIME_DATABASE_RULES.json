@@ -1,0 +1,28 @@
+{
+    "rules": {
+        "conversations": {
+            "$conversationId": {
+                "messages": {
+                    ".read": "auth != null",
+                    "$messageId": {
+                        // Changed to allow auth != null so recipients can mark messages as read
+                        ".write": "auth != null",
+                        ".validate": "newData.hasChildren(['text', 'senderId', 'createdAt'])"
+                    }
+                },
+                "lastMessage": {
+                    ".read": "auth != null",
+                    ".write": "auth != null"
+                }
+            }
+        },
+        "status": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        },
+        "typing": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+        }
+    }
+}
