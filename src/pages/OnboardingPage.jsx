@@ -183,7 +183,7 @@ export default function OnboardingPage() {
               <Typography sx={{ color: '#7a2fff', fontWeight: 700 }}>Add a profile photo (optional)</Typography>
               {imagePreview ? (
                 <Box sx={{ width: 160, height: 160, borderRadius: '50%', overflow: 'hidden', mb: 1 }}>
-                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                 </Box>
               ) : (
                 <Box sx={{ width: 160, height: 160, borderRadius: '50%', background: 'rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
@@ -259,7 +259,7 @@ export default function OnboardingPage() {
   return (
     <Container maxWidth="sm" sx={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", py: 4, background: "linear-gradient(135deg, #e6d6ff 0%, #fbd6ff 100%)" }}>
       <Box sx={{ textAlign: "center", mb: 3 }}>
-        <img src={romanticLogo} alt="Dating Logo" style={{ width: 70, marginBottom: 10 }} />
+        <img src={romanticLogo} alt="Dating Logo" style={{ width: 70, marginBottom: 10 }} loading="lazy" />
         <Typography variant="h4" sx={{ fontWeight: 600, fontSize: "2rem", color: "#340e76ff" }}>Complete Your Profile</Typography>
         <Typography variant="body2" color="textSecondary">Help us get to know you better</Typography>
       </Box>

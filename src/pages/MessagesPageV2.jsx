@@ -19,7 +19,8 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAuth } from "../context/AuthContext";
-import { getOrCreateConversation, listenForConversations } from "../services/chatServiceV2";
+import { deductCoins } from '../services/coinService';
+import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
 import {
   listenForMessagesRealtime,
   sendMessageRealtime,
@@ -31,6 +32,7 @@ import { getUserProfile } from "../services/userService";
 import { ref, onValue } from "firebase/database";
 import { realtimeDb } from "../config/firebase";
 import { getValidImageUrl } from "../utils/imageUtils";
+import SEOHead from "../components/SEOHead.jsx";
 
 const IG_GRADIENT = "linear-gradient(135deg, #754bffff 0%, #7f0f98ff 100%)";
 
@@ -87,6 +89,7 @@ const MessagesPageV2 = () => {
   const [text, setText] = useState("");
   const [profileMap, setProfileMap] = useState({});
   const [status, setStatus] = useState(null);
+  const [isRandomChat, setIsRandomChat] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Hide footer when a conversation is active
@@ -157,6 +160,8 @@ const MessagesPageV2 = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const queryUid = searchParams.get("uid");
+    const randomFlag = searchParams.get("random") === "true";
+    setIsRandomChat(randomFlag);
     let recipientId = location.state?.recipientId || queryUid;
 
     // Validate recipientId
@@ -166,6 +171,7 @@ const MessagesPageV2 = () => {
 
     console.log('[MessagesPageV2] Init check:', {
       queryUid,
+      random: randomFlag,
       stateRecipient: location.state?.recipientId,
       finalRecipientId: recipientId,
       myUid: user?.uid
@@ -257,6 +263,15 @@ const MessagesPageV2 = () => {
     };
 
     try {
+      // If not a random chat and it's the first message, deduct coins first
+      if (!isRandomChat && messages.length === 0) {
+        const deducted = await deductCoins(user.uid, 3, 'message');
+        if (!deducted) {
+          alert('Insufficient coins to start conversation');
+          return;
+        }
+      }
+
       // optimistic UI
       setMessages((prev) => {
         const merged = [...prev, payload];
@@ -293,170 +308,177 @@ const MessagesPageV2 = () => {
   }, [isMobile, activeConv]);
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>
-      {/* Header */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 2, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: "black" }}>Messages</Typography>
-        {!isMobile && activeConv && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Avatar src={getValidImageUrl(otherProfile?.image)} sx={{ width: 36, height: 36 }} />
-            <Box>
-              <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "black" }}>
-                {otherProfile?.name || otherUid || "Conversation"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
-              </Typography>
-            </Box>
-          </Box>
-        )}
-      </Box>
-
-      <Grid container sx={{ flex: 1, minHeight: 0 }}>
-        {/* Conversations List */}
-        {(!isMobile || (isMobile && mobileShowList)) && (
-          <Grid item xs={12} md={3} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
-            <Box sx={{ py: 1 }}>
-              <List disablePadding>
-                {conversations.map((c) => {
-                  const other = (c.participants || []).find((id) => id !== user?.uid) || (c.participants || [])[0];
-                  const prof = other ? profileMap[other] : null;
-                  return (
-                    <Box key={c.id}>
-                      <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2 }}>
-                        <ListItemAvatar>
-                          <Avatar src={getValidImageUrl(prof?.image)}>
-                            {!getValidImageUrl(prof?.image) ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
-                          </Avatar>
-                        </ListItemAvatar>
-                        <ListItemText
-                          primary={prof?.name || other || "User"}
-                          primaryTypographyProps={{ color: "black", fontWeight: 500 }}
-                          secondary={c.lastMessage || ""}
-                        />
-                      </ListItem>
-                      <Divider />
-                    </Box>
-                  );
-                })}
-                {conversations.length === 0 && (
-                  <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>No conversations yet.</Box>
-                )}
-              </List>
-            </Box>
-          </Grid>
-        )}
-
-        {/* Chat Panel */}
-        {(!isMobile || (isMobile && !mobileShowList)) && (
-          <Grid item xs={12} md={9} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
-            {/* Panel header for mobile (back + avatar + name) */}
-            {isMobile && (
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
-                <IconButton onClick={() => { setActiveConv(null); setMobileShowList(true); }}>
-                  <ArrowBackIcon />
-                </IconButton>
-                <Avatar src={getValidImageUrl(otherProfile?.image)} />
-                <Box>
-                  <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                    {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
-                  </Typography>
-                </Box>
+    <>
+      <SEOHead
+        title="Messages | Bichat Dating"
+        description="Chat with your matches on Bichat"
+        noindex={true}
+      />
+      <Container maxWidth={false} disableGutters sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>
+        {/* Header */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 2, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: "black" }}>Messages</Typography>
+          {!isMobile && activeConv && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Avatar src={getValidImageUrl(otherProfile?.image)} sx={{ width: 36, height: 36 }} />
+              <Box>
+                <Typography sx={{ fontWeight: 600, fontSize: "0.95rem", color: "black" }}>
+                  {otherProfile?.name || otherUid || "Conversation"}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
+                </Typography>
               </Box>
-            )}
+            </Box>
+          )}
+        </Box>
 
-            {/* Messages area */}
-            <Box sx={{ flex: 1, overflowY: "auto", px: 2, py: 2, minHeight: 0 }}>
-              {!activeConv ? (
-                <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Typography variant="body1" sx={{ color: "text.secondary" }}>
-                    Select a conversation to start chatting.
-                  </Typography>
-                </Box>
-              ) : (
-                <>
-                  {grouped.map((g) => (
-                    <Box key={g.label}>
-                      {/* date separator above the group's messages */}
-                      <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
-                        <Typography variant="caption" sx={{ background: "rgba(0,0,0,0.05)", color: "text.secondary", px: 2, py: 0.4, borderRadius: 20 }}>
-                          {g.label}
-                        </Typography>
+        <Grid container sx={{ flex: 1, minHeight: 0 }}>
+          {/* Conversations List */}
+          {(!isMobile || (isMobile && mobileShowList)) && (
+            <Grid item xs={12} md={3} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
+              <Box sx={{ py: 1 }}>
+                <List disablePadding>
+                  {conversations.map((c) => {
+                    const other = (c.participants || []).find((id) => id !== user?.uid) || (c.participants || [])[0];
+                    const prof = other ? profileMap[other] : null;
+                    return (
+                      <Box key={c.id}>
+                        <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2 }}>
+                          <ListItemAvatar>
+                            <Avatar src={getValidImageUrl(prof?.image)}>
+                              {!getValidImageUrl(prof?.image) ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
+                            </Avatar>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={prof?.name || other || "User"}
+                            primaryTypographyProps={{ color: "black", fontWeight: 500 }}
+                            secondary={c.lastMessage || ""}
+                          />
+                        </ListItem>
+                        <Divider />
                       </Box>
+                    );
+                  })}
+                  {conversations.length === 0 && (
+                    <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>No conversations yet.</Box>
+                  )}
+                </List>
+              </Box>
+            </Grid>
+          )}
 
-                      {g.items.map((m, i) => {
-                        const isMe = m.senderId && user?.uid ? m.senderId === user.uid : false;
-                        const senderProfile = m.senderId ? profileMap[m.senderId] : null;
-                        return (
-                          <Box key={(m.id || m.createdAt || i) + "-" + i} sx={{ display: "flex", alignItems: "flex-end", mb: 1.25 }}>
-                            {/* avatar for incoming */}
-                            <Box sx={{ width: 44, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
-                              {!isMe ? (
-                                <Avatar src={getValidImageUrl((senderProfile && senderProfile.image) || otherProfile?.image)} sx={{ width: 36, height: 36 }} />
-                              ) : <Box sx={{ width: 36 }} />}
-                            </Box>
-
-                            {/* bubble */}
-                            <Box sx={{ flex: 1, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
-                              <Box
-                                sx={{
-                                  borderRadius: "18px",
-                                  px: 2,
-                                  py: 1,
-                                  maxWidth: "85%",
-                                  background: isMe ? IG_GRADIENT : "#fff",
-                                  color: isMe ? "#fff" : "#111",
-                                  boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",
-                                  border: isMe ? "none" : "none",
-                                }}
-                              >
-                                <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
-                                <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
-                                  {formatTime(m.createdAt ?? m.timestamp)}
-                                </Typography>
-                              </Box>
-                            </Box>
-
-                            {/* spacer (balance) */}
-                            <Box sx={{ width: 44 }} />
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </>
+          {/* Chat Panel */}
+          {(!isMobile || (isMobile && !mobileShowList)) && (
+            <Grid item xs={12} md={9} sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
+              {/* Panel header for mobile (back + avatar + name) */}
+              {isMobile && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, py: 1, borderBottom: "1px solid rgba(0,0,0,0.04)", bgcolor: "#fff" }}>
+                  <IconButton onClick={() => { setActiveConv(null); setMobileShowList(true); }}>
+                    <ArrowBackIcon />
+                  </IconButton>
+                  <Avatar src={getValidImageUrl(otherProfile?.image)} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
+                    </Typography>
+                  </Box>
+                </Box>
               )}
-            </Box>
 
-            {/* Input */}
-            <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center", bgcolor: "#fff" }}>
-              <TextField
-                fullWidth
-                placeholder={activeConv ? `Message ${otherProfile?.name || ""}` : "Select a conversation"}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
-                disabled={!activeConv}
-                size="small"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 3,
-                    bgcolor: "#f0f2f5",
-                    "& fieldset": { border: "none" },
-                  },
-                  "& .MuiInputBase-input": { color: "#000" }
-                }}
-              />
-              <IconButton color="primary" disabled={!activeConv || !text.trim()} onClick={handleSend}>
-                <SendIcon />
-              </IconButton>
-            </Box>
-          </Grid>
-        )}
-      </Grid>
-    </Container>
+              {/* Messages area */}
+              <Box sx={{ flex: 1, overflowY: "auto", px: 2, py: 2, minHeight: 0 }}>
+                {!activeConv ? (
+                  <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                      Select a conversation to start chatting.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <>
+                    {grouped.map((g) => (
+                      <Box key={g.label}>
+                        {/* date separator above the group's messages */}
+                        <Box sx={{ display: "flex", justifyContent: "center", my: 1 }}>
+                          <Typography variant="caption" sx={{ background: "rgba(0,0,0,0.05)", color: "text.secondary", px: 2, py: 0.4, borderRadius: 20 }}>
+                            {g.label}
+                          </Typography>
+                        </Box>
+
+                        {g.items.map((m, i) => {
+                          const isMe = m.senderId && user?.uid ? m.senderId === user.uid : false;
+                          const senderProfile = m.senderId ? profileMap[m.senderId] : null;
+                          return (
+                            <Box key={(m.id || m.createdAt || i) + "-" + i} sx={{ display: "flex", alignItems: "flex-end", mb: 1.25 }}>
+                              {/* avatar for incoming */}
+                              <Box sx={{ width: 44, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
+                                {!isMe ? (
+                                  <Avatar src={getValidImageUrl((senderProfile && senderProfile.image) || otherProfile?.image)} sx={{ width: 36, height: 36 }} />
+                                ) : <Box sx={{ width: 36 }} />}
+                              </Box>
+
+                              {/* bubble */}
+                              <Box sx={{ flex: 1, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
+                                <Box
+                                  sx={{
+                                    borderRadius: "18px",
+                                    px: 2,
+                                    py: 1,
+                                    maxWidth: "85%",
+                                    background: isMe ? IG_GRADIENT : "#fff",
+                                    color: isMe ? "#fff" : "#111",
+                                    boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",
+                                    border: isMe ? "none" : "none",
+                                  }}
+                                >
+                                  <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
+                                  <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
+                                    {formatTime(m.createdAt ?? m.timestamp)}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              {/* spacer (balance) */}
+                              <Box sx={{ width: 44 }} />
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </Box>
+
+              {/* Input */}
+              <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center", bgcolor: "#fff" }}>
+                <TextField
+                  fullWidth
+                  placeholder={activeConv ? `Message ${otherProfile?.name || ""}` : "Select a conversation"}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+                  disabled={!activeConv}
+                  size="small"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 3,
+                      bgcolor: "#f0f2f5",
+                      "& fieldset": { border: "none" },
+                    },
+                    "& .MuiInputBase-input": { color: "#000" }
+                  }}
+                />
+                <IconButton color="primary" disabled={!activeConv || !text.trim()} onClick={handleSend}>
+                  <SendIcon />
+                </IconButton>
+              </Box>
+            </Grid>
+          )}
+        </Grid>
+      </Container>
+    </>
   );
 };
 

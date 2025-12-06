@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../config/firebase.js';
 import { getUserProfile } from '../services/userService.js';
+import { subscribeToCoins, checkDailyLoginReward } from '../services/coinService.js';
 
 // Create Auth Context
 const AuthContext = createContext(null);
@@ -17,6 +18,7 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [coins, setCoins] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -30,12 +32,19 @@ export const AuthProvider = ({ children }) => {
         try {
           const userProfile = await getUserProfile(currentUser.uid);
           setProfile(userProfile || null);
+
+          // Check and award daily login reward
+          const rewardResult = await checkDailyLoginReward(currentUser.uid);
+          if (rewardResult.awarded) {
+            console.log(`[AuthContext] Awarded ${rewardResult.coins} coins for daily login`);
+          }
         } catch (err) {
           console.error('Error fetching user profile:', err);
           setProfile(null);
         }
       } else {
         setProfile(null);
+        setCoins(0);
       }
 
       setLoading(false);
@@ -44,18 +53,33 @@ export const AuthProvider = ({ children }) => {
     return unsubscribe;
   }, []);
 
-    // Helper to refresh profile from Firestore (useful after onboarding)
-    const refreshProfile = async () => {
-      if (!user || !user.uid) return null;
-      try {
-        const userProfile = await getUserProfile(user.uid);
-        setProfile(userProfile || null);
-        return userProfile;
-      } catch (err) {
-        console.error('Error refreshing profile:', err);
-        return null;
-      }
+  // Subscribe to real-time coin balance updates
+  useEffect(() => {
+    let unsubscribeCoins = () => { };
+
+    if (user?.uid) {
+      unsubscribeCoins = subscribeToCoins(user.uid, (newCoins) => {
+        setCoins(newCoins);
+      });
+    }
+
+    return () => {
+      unsubscribeCoins();
     };
+  }, [user?.uid]);
+
+  // Helper to refresh profile from Firestore (useful after onboarding)
+  const refreshProfile = async () => {
+    if (!user || !user.uid) return null;
+    try {
+      const userProfile = await getUserProfile(user.uid);
+      setProfile(userProfile || null);
+      return userProfile;
+    } catch (err) {
+      console.error('Error refreshing profile:', err);
+      return null;
+    }
+  };
 
   // Sign Up with Email and Password
   const signup = async (email, password) => {
@@ -119,6 +143,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     profile,
+    coins,
     loading,
     error,
     signup,
@@ -128,7 +153,9 @@ export const AuthProvider = ({ children }) => {
     getToken,
     refreshProfile,
     isAuthenticated: !!user,
-    isProfileComplete: !!profile?.profileComplete,
+    // Check if profile is complete by verifying required fields exist
+    isProfileComplete: profile?.profileComplete === true ||
+      (profile?.name && profile?.gender && profile?.lookingFor && profile?.birthDate),
   };
 
   return (

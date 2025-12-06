@@ -1,4 +1,6 @@
 import { db } from '../config/firebase.js';
+import { realtimeDb } from '../config/firebase.js';
+import { ref, get } from 'firebase/database';
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 
@@ -27,6 +29,8 @@ export const createUserProfile = async (userId, profileData) => {
       userDocRef,
       {
         ...dataToSave,
+        coins: 0, // Initialize with 0 coins
+        lastLoginDate: null, // Track last login for daily rewards
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -214,6 +218,19 @@ export const getLikedProfiles = async (userId) => {
   }
 };
 
+// Check if user has ever liked a specific profile
+export const hasEverLikedProfile = async (userId, targetUid) => {
+  try {
+    const likedProfilesCol = collection(db, 'users', userId, 'likedProfiles');
+    const q = query(likedProfilesCol, where('uid', '==', targetUid));
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+  } catch (error) {
+    console.error('Error checking if profile was liked:', error);
+    return false;
+  }
+};
+
 // Get profiles who liked the current user
 export const getLikedByProfiles = async (userId) => {
   try {
@@ -332,6 +349,75 @@ export const uploadProfileImage = async (userId, file, onProgress) => {
   } catch (err) {
     console.error('Image processing failed', err);
     throw err;
+  }
+};
+
+// Get a random user for random chat feature
+export const getRandomUser = async (currentUserId) => {
+  try {
+    console.log(`[getRandomUser] Finding random online user for ${currentUserId}`);
+    
+    // Get all users except the current user
+    const allProfiles = await getAllUserProfiles(currentUserId);
+    
+    if (allProfiles.length === 0) {
+      console.log('[getRandomUser] No other users available');
+      return null;
+    }
+    
+    // Get online user IDs
+    const onlineUserIds = await getOnlineUsers();
+    console.log(`[getRandomUser] Found ${onlineUserIds.length} online users:`, onlineUserIds);
+    
+    // Filter profiles to only include online users
+    const onlineProfiles = allProfiles.filter(profile => 
+      onlineUserIds.includes(profile.uid)
+    );
+    
+    console.log(`[getRandomUser] ${onlineProfiles.length} online users available for random chat`);
+    
+    if (onlineProfiles.length === 0) {
+      console.log('[getRandomUser] No online users available');
+      return null;
+    }
+    
+    // Select a random user from the online profiles
+    const randomIndex = Math.floor(Math.random() * onlineProfiles.length);
+    const randomUser = onlineProfiles[randomIndex];
+    
+    console.log(`[getRandomUser] Selected random online user: ${randomUser.uid}`);
+    return randomUser;
+  } catch (error) {
+    console.error('Error getting random user:', error);
+    throw error;
+  }
+};
+
+// Get list of online user IDs from Realtime Database
+const getOnlineUsers = async () => {
+  try {
+    const statusRef = ref(realtimeDb, 'status');
+    const snapshot = await get(statusRef);
+    
+    if (!snapshot.exists()) {
+      console.log('[getOnlineUsers] No status data found');
+      return [];
+    }
+    
+    const statusData = snapshot.val();
+    const onlineUserIds = [];
+    
+    // Filter users where online === true
+    Object.keys(statusData).forEach(userId => {
+      if (statusData[userId]?.online === true) {
+        onlineUserIds.push(userId);
+      }
+    });
+    
+    return onlineUserIds;
+  } catch (error) {
+    console.error('Error getting online users:', error);
+    return [];
   }
 };
 

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Container, Grid, Box, Typography, CircularProgress, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ProfileCard from '../components/ProfileCard.jsx';
+import SEOHead from '../components/SEOHead.jsx';
 import { getAllUserProfiles } from '../services/userService';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -89,156 +90,166 @@ const HomePage = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="lg" sx={{ pb: { xs: 12, sm: 10 }, mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress />
-        </Box>
-      </Container>
+      <>
+        <SEOHead
+          title="Discover Your Perfect Match | Bichat Dating"
+          description="Browse profiles and find your perfect match on Bichat. Connect with singles in your area looking for meaningful relationships."
+          keywords="dating profiles, browse singles, find matches, online dating, meet people, Bichat"
+          url="https://bichat-make-friendswith-bichat.netlify.app/"
+        />
+        <Container maxWidth="lg" sx={{ pb: { xs: 12, sm: 10 }, mt: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        </Container>
+      </>
     );
   }
 
   return (
-    <Container maxWidth={isMobile ? 'sm' : 'lg'} sx={{ pb: { xs: 12, sm: 10 }, minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {error ? (
-        <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography variant="h6" color="error">Error loading profiles</Typography>
-          <Typography variant="body2" color="text.secondary">{error}</Typography>
-        </Box>
-      ) : profiles.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Typography variant="h6">No profiles yet</Typography>
-          <Typography variant="body2" color="text.secondary">Be the first to complete your profile.</Typography>
-        </Box>
-      ) : isMobile ? (
-        <Box sx={{ width: '100%' }}>
-          {/* Mobile: show all cards in a scrollable list, each card is swipeable */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {profiles.map((profile, idx) => (
-              <motion.div
-                key={profile.uid}
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.8}
-                style={{
-                  width: '100%',
-                  position: 'relative',
-                  background: swipeStatuses[idx] === 'liked'
-                    ? 'rgba(0, 255, 0, 0.1)'
-                    : swipeStatuses[idx] === 'passed'
-                      ? 'rgba(255, 0, 0, 0.1)'
-                      : 'transparent',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  rotate: swipeStatuses[idx] === 'liked' ? 15 : swipeStatuses[idx] === 'passed' ? -15 : 0,
-                }}
-                whileTap={{ scale: 0.97 }}
-                onDragEnd={(e, info) => {
-                  if (!user) {
-                    // Reset position if not logged in
-                    // We can't easily reset the drag position imperatively with simple framer-motion drag
-                    // But we can redirect. The card might stay dragged until unmount or refresh, but redirect happens fast.
-                    navigate('/login', { state: { from: location.pathname } });
-                    return;
-                  }
-                  if (info.offset.x > 120) {
-                    setSwipeStatuses((prev) => prev.map((s, i) => i === idx ? 'liked' : s));
-                    setTimeout(() => {
-                      document.getElementById(`like-btn-${profile.uid}`)?.click();
-                      setProfiles((prev) => prev.filter((_, i) => i !== idx));
-                      setSwipeStatuses((prev) => prev.filter((_, i) => i !== idx));
-                    }, 500);
-                  } else if (info.offset.x < -120) {
-                    setSwipeStatuses((prev) => prev.map((s, i) => i === idx ? 'passed' : s));
-                    setTimeout(() => {
-                      document.getElementById(`pass-btn-${profile.uid}`)?.click();
-                      setProfiles((prev) => prev.filter((_, i) => i !== idx));
-                      setSwipeStatuses((prev) => prev.filter((_, i) => i !== idx));
-                    }, 500);
-                  }
-                }}
-              >
-                {/* Animated badge for swipe feedback */}
-                <AnimatePresence>
-                  {swipeStatuses[idx] === 'liked' && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.7, y: 30 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.7, y: -30 }}
-                      transition={{ duration: 0.4 }}
-                      style={{
-                        position: 'absolute',
-                        top: 24,
-                        left: 24,
-                        zIndex: 10,
-                        background: 'linear-gradient(90deg,#7a2fff,#ff5fa2)',
-                        color: 'white',
-                        borderRadius: 16,
-                        padding: '8px 18px',
-                        fontWeight: 700,
-                        fontSize: 18,
-                        boxShadow: '0 2px 12px #7a2fff44',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      ❤️ Liked
-                    </motion.div>
-                  )}
-                  {swipeStatuses[idx] === 'passed' && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.7, y: 30 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.7, y: -30 }}
-                      transition={{ duration: 0.4 }}
-                      style={{
-                        position: 'absolute',
-                        top: 24,
-                        right: 24,
-                        zIndex: 10,
-                        background: 'linear-gradient(90deg,#ff5fa2,#7a2fff)',
-                        color: 'white',
-                        borderRadius: 16,
-                        padding: '8px 18px',
-                        fontWeight: 700,
-                        fontSize: 18,
-                        boxShadow: '0 2px 12px #ff5fa244',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      ❌ Passed
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <ProfileCard
-                  profile={profile}
-                  likeBtnId={`like-btn-${profile.uid}`}
-                  passBtnId={`pass-btn-${profile.uid}`}
-                  sx={{
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                    border: '2px solid',
-                    borderColor: swipeStatuses[idx] === 'liked'
-                      ? 'rgba(0, 255, 0, 0.5)'
-                      : swipeStatuses[idx] === 'passed'
-                        ? 'rgba(255, 0, 0, 0.5)'
-                        : 'rgba(0,0,0,0.1)',
-                    borderRadius: '16px',
-                    overflow: 'hidden',
-                    background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)',
-                  }}
-                />
-              </motion.div>
-            ))}
+    <>
+      <Container maxWidth={isMobile ? 'sm' : 'lg'} sx={{ pb: { xs: 12, sm: 10 }, minHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {error ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <Typography variant="h6" color="error">Error loading profiles</Typography>
+            <Typography variant="body2" color="text.secondary">{error}</Typography>
           </Box>
-        </Box>
-      ) : (
-        <Grid container spacing={2} justifyContent="center">
-          {profiles.map((profile) => (
-            <Grid item xs={12} sm={6} md={6} lg={4} key={profile.uid}>
-              <ProfileCard profile={profile} />
-            </Grid>
-          ))}
-        </Grid>
-      )}
-    </Container>
+        ) : profiles.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <Typography variant="h6">No profiles yet</Typography>
+            <Typography variant="body2" color="text.secondary">Be the first to complete your profile.</Typography>
+          </Box>
+        ) : isMobile ? (
+          <Box sx={{ width: '100%' }}>
+            {/* Mobile: show all cards in a scrollable list, each card is swipeable */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {profiles.map((profile, idx) => (
+                <motion.div
+                  key={profile.uid}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.8}
+                  style={{
+                    width: '100%',
+                    position: 'relative',
+                    background: swipeStatuses[idx] === 'liked'
+                      ? 'rgba(0, 255, 0, 0.1)'
+                      : swipeStatuses[idx] === 'passed'
+                        ? 'rgba(255, 0, 0, 0.1)'
+                        : 'transparent',
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    rotate: swipeStatuses[idx] === 'liked' ? 15 : swipeStatuses[idx] === 'passed' ? -15 : 0,
+                  }}
+                  whileTap={{ scale: 0.97 }}
+                  onDragEnd={(e, info) => {
+                    if (!user) {
+                      // Reset position if not logged in
+                      // We can't easily reset the drag position imperatively with simple framer-motion drag
+                      // But we can redirect. The card might stay dragged until unmount or refresh, but redirect happens fast.
+                      navigate('/login', { state: { from: location.pathname } });
+                      return;
+                    }
+                    if (info.offset.x > 120) {
+                      setSwipeStatuses((prev) => prev.map((s, i) => i === idx ? 'liked' : s));
+                      setTimeout(() => {
+                        document.getElementById(`like-btn-${profile.uid}`)?.click();
+                        setProfiles((prev) => prev.filter((_, i) => i !== idx));
+                        setSwipeStatuses((prev) => prev.filter((_, i) => i !== idx));
+                      }, 500);
+                    } else if (info.offset.x < -120) {
+                      setSwipeStatuses((prev) => prev.map((s, i) => i === idx ? 'passed' : s));
+                      setTimeout(() => {
+                        document.getElementById(`pass-btn-${profile.uid}`)?.click();
+                        setProfiles((prev) => prev.filter((_, i) => i !== idx));
+                        setSwipeStatuses((prev) => prev.filter((_, i) => i !== idx));
+                      }, 500);
+                    }
+                  }}
+                >
+                  {/* Animated badge for swipe feedback */}
+                  <AnimatePresence>
+                    {swipeStatuses[idx] === 'liked' && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.7, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.7, y: -30 }}
+                        transition={{ duration: 0.4 }}
+                        style={{
+                          position: 'absolute',
+                          top: 24,
+                          left: 24,
+                          zIndex: 10,
+                          background: 'linear-gradient(90deg,#7a2fff,#ff5fa2)',
+                          color: 'white',
+                          borderRadius: 16,
+                          padding: '8px 18px',
+                          fontWeight: 700,
+                          fontSize: 18,
+                          boxShadow: '0 2px 12px #7a2fff44',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        ❤️ Liked
+                      </motion.div>
+                    )}
+                    {swipeStatuses[idx] === 'passed' && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.7, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.7, y: -30 }}
+                        transition={{ duration: 0.4 }}
+                        style={{
+                          position: 'absolute',
+                          top: 24,
+                          right: 24,
+                          zIndex: 10,
+                          background: 'linear-gradient(90deg,#ff5fa2,#7a2fff)',
+                          color: 'white',
+                          borderRadius: 16,
+                          padding: '8px 18px',
+                          fontWeight: 700,
+                          fontSize: 18,
+                          boxShadow: '0 2px 12px #ff5fa244',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        ❌ Passed
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <ProfileCard
+                    profile={profile}
+                    likeBtnId={`like-btn-${profile.uid}`}
+                    passBtnId={`pass-btn-${profile.uid}`}
+                    sx={{
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      border: '2px solid',
+                      borderColor: swipeStatuses[idx] === 'liked'
+                        ? 'rgba(0, 255, 0, 0.5)'
+                        : swipeStatuses[idx] === 'passed'
+                          ? 'rgba(255, 0, 0, 0.5)'
+                          : 'rgba(0,0,0,0.1)',
+                      borderRadius: '16px',
+                      overflow: 'hidden',
+                      background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)',
+                    }}
+                  />
+                </motion.div>
+              ))}
+            </Box>
+          </Box>
+        ) : (
+          <Grid container spacing={2} justifyContent="center">
+            {profiles.map((profile) => (
+              <Grid item xs={12} sm={6} md={6} lg={4} key={profile.uid}>
+                <ProfileCard profile={profile} />
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Container>
+    </>
   );
 };
 

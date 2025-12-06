@@ -89,3 +89,10 @@ body, html { overflow-x: hidden; }
   height: 100vh !important;
   display: block !important;
 }
+
+/* Add padding to bottom on mobile to prevent content from being hidden behind BottomNav */
+@media (max-width: 900px) {
+  .app {
+    padding-bottom: 100px; /* 80px nav + 20px buffer */
+  }
+}

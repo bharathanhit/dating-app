@@ -2,18 +2,21 @@ import { Card, CardContent, CardMedia, Typography, Button, Grid, Box, Chip, Avat
 import SendIcon from '@mui/icons-material/Send';
 import { Favorite, Clear } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { addLikedProfile, removeLikedProfile } from '../services/userService';
+import { addLikedProfile, removeLikedProfile, hasEverLikedProfile } from '../services/userService';
+import { deductCoins, getUserCoins } from '../services/coinService';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { ref, onValue } from 'firebase/database';
 import { realtimeDb } from '../config/firebase';
 import { useState, useEffect } from 'react';
+import { Alert, Snackbar } from '@mui/material';
 
 const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
-  const { user, refreshProfile, profile: myProfile } = useAuth();
+  const { user, refreshProfile, profile: myProfile, coins } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isOnline, setIsOnline] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   useEffect(() => {
     if (!profile?.uid) return;
@@ -33,21 +36,64 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
         navigate('/login', { state: { from: location.pathname, action: 'like', targetUid: likedUid } });
         return;
       }
+
       const alreadyLiked = Array.isArray(myProfile?.likedProfiles) && myProfile.likedProfiles.some((p) => p.uid === likedUid);
 
       if (alreadyLiked) {
-        // remove
+        // remove like (no coin refund)
         await removeLikedProfile(user.uid, likedUid);
+        setSnackbar({ open: true, message: 'Removed like', severity: 'info' });
       } else {
+        // Check if this is a completely new like (never liked before)
+        const LIKE_COST = 1;
+        const hasLikedBefore = await hasEverLikedProfile(user.uid, likedUid);
+
+        // Only deduct coins if this is a brand new like
+        if (!hasLikedBefore) {
+          const currentCoins = await getUserCoins(user.uid);
+
+          if (currentCoins < LIKE_COST) {
+            setSnackbar({
+              open: true,
+              message: 'Insufficient coins! Purchase more coins to continue liking profiles.',
+              severity: 'error'
+            });
+            // Navigate to coins page after a short delay
+            setTimeout(() => {
+              navigate('/coins');
+            }, 2000);
+            return;
+          }
+
+          // Deduct coins for new like
+          const deducted = await deductCoins(user.uid, LIKE_COST, 'like');
+
+          if (!deducted) {
+            setSnackbar({
+              open: true,
+              message: 'Failed to deduct coins. Please try again.',
+              severity: 'error'
+            });
+            return;
+          }
+        }
+
         // add minimal info
         const likedEntry = { uid: likedUid, name: profile.name || '', image: profile.image || null };
         await addLikedProfile(user.uid, likedEntry);
+
+        if (hasLikedBefore) {
+          setSnackbar({ open: true, message: 'Liked again! (No coins deducted)', severity: 'success' });
+        } else {
+          setSnackbar({ open: true, message: `Liked! (${LIKE_COST} coin deducted)`, severity: 'success' });
+        }
       }
 
       // refresh context profile so footer updates
       try { await refreshProfile(); } catch (e) { console.warn('refreshProfile failed', e); }
     } catch (err) {
       console.error('Error toggling like:', err);
+      setSnackbar({ open: true, message: 'Error processing like. Please try again.', severity: 'error' });
     }
   };
 
@@ -81,6 +127,7 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
           }}
           image={profile.image || 'https://via.placeholder.com/600x400'}
           alt={profile.name}
+          loading="lazy"
         />
         {isOnline && (
           <Box
@@ -178,6 +225,22 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId }) => {
           </Grid>
         </Grid>
       </CardContent>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Card>
   );
 };

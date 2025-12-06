@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider, Badge } from '@mui/material';
-import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications } from '@mui/icons-material';
+import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider, Badge, Chip, Tooltip } from '@mui/material';
+import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications, MonetizationOn } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { subscribeToLikedBy } from '../services/userService';
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, coins } = useAuth();
   const navigate = useNavigate();
   const [likeCount, setLikeCount] = useState(0);
 
@@ -36,10 +36,9 @@ const Navbar = () => {
   };
 
   const navItems = [
-    { text: 'Messages', to: '/messages', icon: <Message /> },
     {
       text: 'Who Liked Me',
-      to: '/who-liked-me',
+      to: { pathname: '/likes', state: { tab: 1 } },
       icon: (
         <Badge badgeContent={likeCount} color="error">
           <Notifications />
@@ -67,14 +66,42 @@ const Navbar = () => {
             BIXSOL
           </Typography>
 
+          {/* Coin Balance - Show for logged in users */}
+          {user && (
+            <Tooltip title="Buy Coins" placement="bottom">
+              <Chip
+                icon={<MonetizationOn sx={{ color: '#FFD700 !important' }} />}
+                label={coins || 0}
+                onClick={() => navigate('/coins')}
+                sx={{
+                  mr: 2,
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                  color: '#000',
+                  fontWeight: 700,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  cursor: 'pointer',
+                  border: '2px solid #FFD700',
+                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #FFA500 0%, #FFD700 100%)',
+                    boxShadow: '0 4px 12px rgba(255, 215, 0, 0.5)',
+                  },
+                }}
+              />
+            </Tooltip>
+          )}
+
           {/* Desktop buttons: hide on small screens */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
             {user ? (
               <>
-                <IconButton component={Link} to="/messages" color="inherit" aria-label="messages" title="Messages">
-                  <Message />
-                </IconButton>
-                <IconButton component={Link} to="/who-liked-me" color="inherit" aria-label="who liked me" title="Who Liked Me">
+                <IconButton
+                  component={Link}
+                  to="/notifications"
+                  color="inherit"
+                  aria-label="notifications"
+                  title="Notifications"
+                >
                   <Badge badgeContent={likeCount} color="error">
                     <Notifications />
                   </Badge>
@@ -118,6 +145,36 @@ const Navbar = () => {
               <CloseIcon />
             </IconButton>
           </Box>
+
+          {/* Coin Balance in Mobile Menu */}
+          {user && (
+            <Box sx={{ px: 2, pb: 2 }}>
+              <Chip
+                icon={<MonetizationOn sx={{ color: '#FFD700 !important' }} />}
+                label={`${coins || 0} Coins`}
+                onClick={() => {
+                  navigate('/coins');
+                  setOpen(false);
+                }}
+                sx={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                  color: '#000',
+                  fontWeight: 700,
+                  fontSize: '1rem',
+                  py: 2,
+                  cursor: 'pointer',
+                  border: '2px solid #FFD700',
+                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #FFA500 0%, #FFD700 100%)',
+                    boxShadow: '0 4px 12px rgba(255, 215, 0, 0.5)',
+                  },
+                }}
+              />
+            </Box>
+          )}
+
           <List>
             {user && navItems.map((item) => (
               <ListItem

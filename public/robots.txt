@@ -1,0 +1,22 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+
+# Allow crawling of public pages
+Allow: /
+Allow: /login
+Allow: /signup
+
+# Disallow crawling of private/protected pages
+Disallow: /profile
+Disallow: /messages
+Disallow: /messagesv2
+Disallow: /likes
+Disallow: /who-liked-me
+Disallow: /onboarding
+
+# Disallow crawling of API endpoints and admin areas
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap location
+Sitemap: https://bichat-make-friendswith-bichat.netlify.app/sitemap.xml

@@ -13,7 +13,10 @@ import MessagesPageV2 from './pages/MessagesPageV2.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import LikesPage from './pages/LikesPage.jsx';
 import WhoLikedMePage from './pages/WhoLikedMePage.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
+import CoinsPage from './pages/CoinsPage.jsx';
 import PublicProfilePage from './pages/PublicProfilePage.jsx';
+import LikeNotification from './components/LikeNotification.jsx';
 import './App.css';
 
 const theme = createTheme({
@@ -32,6 +35,7 @@ const App = () => {
     <ThemeProvider theme={theme}>
       <AuthProvider>
         <Router>
+          <LikeNotification />
           <div className="app">
             <Navbar />
             <main className="main-content">
@@ -76,6 +80,22 @@ const App = () => {
                   element={
                     <ProtectedOnboardingRoute>
                       <WhoLikedMePage />
+                    </ProtectedOnboardingRoute>
+                  }
+                />
+                <Route
+                  path="/notifications"
+                  element={
+                    <ProtectedOnboardingRoute>
+                      <NotificationsPage />
+                    </ProtectedOnboardingRoute>
+                  }
+                />
+                <Route
+                  path="/coins"
+                  element={
+                    <ProtectedOnboardingRoute>
+                      <CoinsPage />
                     </ProtectedOnboardingRoute>
                   }
                 />
