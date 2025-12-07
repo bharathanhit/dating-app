@@ -11,7 +11,7 @@
   to = "/index.html"
   status = 200
   force = false
-  conditions = {Role = [""], Country = []}
+  force = false
 
 # Headers for static assets
 [[headers]]

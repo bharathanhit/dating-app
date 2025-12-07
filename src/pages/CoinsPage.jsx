@@ -11,6 +11,7 @@ const CoinsPage = () => {
     const navigate = useNavigate();
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [purchasingId, setPurchasingId] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     // Coin packages
@@ -69,6 +70,8 @@ const CoinsPage = () => {
     }, [user, navigate]);
 
     const handlePurchase = async (pkg) => {
+        if (purchasingId) return;
+        setPurchasingId(pkg.id);
         try {
             await purchaseCoins(user.uid, pkg.amount, pkg.name);
             setSnackbar({
@@ -87,6 +90,8 @@ const CoinsPage = () => {
                 message: 'Failed to purchase coins. Please try again.',
                 severity: 'error',
             });
+        } finally {
+            setPurchasingId(null);
         }
     };
 
@@ -233,6 +238,7 @@ const CoinsPage = () => {
                                                 variant="contained"
                                                 fullWidth
                                                 onClick={() => handlePurchase(pkg)}
+                                                disabled={!!purchasingId}
                                                 sx={{
                                                     mt: 2,
                                                     py: 1.5,
@@ -243,16 +249,31 @@ const CoinsPage = () => {
                                                     '&:hover': {
                                                         background: 'rgba(255, 255, 255, 1)',
                                                     },
+                                                    '&:disabled': {
+                                                        background: 'rgba(255, 255, 255, 0.5)',
+                                                        color: 'rgba(0, 0, 0, 0.5)',
+                                                    }
                                                 }}
-                                                startIcon={<CheckCircle />}
+                                                startIcon={purchasingId === pkg.id ? <CircularProgress size={20} color="inherit" /> : <CheckCircle />}
                                             >
-                                                Purchase
+                                                {purchasingId === pkg.id ? 'Processing...' : 'Purchase'}
                                             </Button>
                                         </CardContent>
                                     </Card>
                                 </Grid>
                             ))}
                         </Grid>
+                    </Box>
+
+                    <Box sx={{ textAlign: 'center', mb: 6 }}>
+                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                            By purchasing, you agree to our <span
+                                style={{ textDecoration: 'underline', cursor: 'pointer', color: 'white' }}
+                                onClick={() => navigate('/refund-policy')}
+                            >
+                                Refund and Cancellation Policy
+                            </span>
+                        </Typography>
                     </Box>
 
                     <Divider sx={{ my: 6, borderColor: 'rgba(255, 255, 255, 0.2)' }} />

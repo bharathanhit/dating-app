@@ -53,7 +53,7 @@ const Navbar = () => {
               sx={{
                 fontWeight: 500, // Condensed font needs weight to stand out, but it's narrow
                 // Gradient text: Navy -> Blurple -> Pink
-                background: 'linear-gradient(45deg, #0d0d9cff, #a153eaff, #5d2b5fff)',
+                background: 'linear-gradient(45deg, #0b0b79ff, #a153eaff, #5d2b5fff)',
                 backgroundSize: '200% auto',
                 animation: 'gradient 8s linear infinite', // Slower interactive feel
                 WebkitBackgroundClip: 'text',
@@ -78,7 +78,7 @@ const Navbar = () => {
               Bich
               <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', ml: '1px', mr: '1px', mt: { xs: '4px', md: '9px' } }}>
                 <Chat sx={{
-                  fontSize: '0.8em',
+                  fontSize: '0.7em',
                   // Make icon match gradient or white? User had it white. 
                   // Let's keep it white to stand out, or apply gradient?
                   // Providing white with drop shadow as before but maybe refined.
@@ -237,7 +237,6 @@ const Navbar = () => {
               onClick={() => setOpen(false)}
               sx={{ '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
             >
-              <ListItemIcon><PrivacyTip /></ListItemIcon>
               <ListItemText primary="Privacy Policy" />
             </ListItem>
             {user && <Divider />}

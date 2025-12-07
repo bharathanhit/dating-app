@@ -10,11 +10,12 @@ const SEOHead = ({
     title = 'Bichat - Find Your Perfect Match | Modern Dating App',
     description = 'Discover meaningful connections on Bichat. Browse profiles, chat with matches, and find your perfect partner. Join thousands of singles looking for love.',
     keywords = 'dating app, online dating, find love, relationships, matches, singles, dating site, meet people, romance, connections, Bichat',
-    image = 'https://bichat-make-friendswith-bichat.netlify.app/og-image.png',
+    image = 'https://bichat-make-friendswith-bichat.netlify.app/og-image-optimized.png',
     url = 'https://bichat-make-friendswith-bichat.netlify.app/',
     type = 'website',
     noindex = false,
     author = 'Bichat',
+    schema = null,
 }) => {
     useEffect(() => {
         // Update document title
@@ -74,7 +75,19 @@ const SEOHead = ({
             document.head.appendChild(canonical);
         }
         canonical.setAttribute('href', url);
-    }, [title, description, keywords, image, url, type, noindex, author]);
+
+        // Inject structured data (JSON-LD)
+        if (schema) {
+            let script = document.querySelector('script[type="application/ld+json"][data-generated="true"]');
+            if (!script) {
+                script = document.createElement('script');
+                script.setAttribute('type', 'application/ld+json');
+                script.setAttribute('data-generated', 'true');
+                document.head.appendChild(script);
+            }
+            script.textContent = JSON.stringify(schema);
+        }
+    }, [title, description, keywords, image, url, type, noindex, author, schema]);
 
     // This component doesn't render anything
     return null;
@@ -89,6 +102,7 @@ SEOHead.propTypes = {
     type: PropTypes.string,
     noindex: PropTypes.bool,
     author: PropTypes.string,
+    schema: PropTypes.object,
 };
 
 export default SEOHead;

@@ -28,4 +28,36 @@
     <priority>0.8</priority>
   </url>
   
+  <!-- Contact Page -->
+  <url>
+    <loc>https://bichat-make-friendswith-bichat.netlify.app/contact</loc>
+    <lastmod>2025-12-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- Privacy Policy Page -->
+  <url>
+    <loc>https://bichat-make-friendswith-bichat.netlify.app/privacy</loc>
+    <lastmod>2025-12-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Refund Policy Page -->
+  <url>
+    <loc>https://bichat-make-friendswith-bichat.netlify.app/refund-policy</loc>
+    <lastmod>2025-12-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+
+  <!-- Terms and Conditions Page -->
+  <url>
+    <loc>https://bichat-make-friendswith-bichat.netlify.app/terms</loc>
+    <lastmod>2025-12-07</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  
 </urlset>

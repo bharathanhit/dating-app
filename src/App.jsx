@@ -18,6 +18,8 @@ import CoinsPage from './pages/CoinsPage.jsx';
 import PublicProfilePage from './pages/PublicProfilePage.jsx';
 import ContactPage from './pages/ContactPage.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
+import RefundPolicyPage from './pages/RefundPolicyPage.jsx';
+import TermsAndConditionsPage from './pages/TermsAndConditionsPage.jsx';
 import LikeNotification from './components/LikeNotification.jsx';
 import './App.css';
 
@@ -112,6 +114,8 @@ const App = () => {
                 />
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/refund-policy" element={<RefundPolicyPage />} />
+                <Route path="/terms" element={<TermsAndConditionsPage />} />
               </Routes>
             </main>
             <Footer />

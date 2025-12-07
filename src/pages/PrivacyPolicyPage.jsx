@@ -73,6 +73,33 @@ const PrivacyPolicyPage = () => {
 
                         <Divider sx={{ my: 6 }} />
 
+                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mb: 4, flexWrap: 'wrap' }}>
+                            <Typography
+                                variant="body2"
+                                component="a"
+                                href="/refund-policy"
+                                sx={{
+                                    color: 'text.secondary',
+                                    textDecoration: 'none',
+                                    '&:hover': { color: 'primary.main', textDecoration: 'underline' }
+                                }}
+                            >
+                                Refund Policy
+                            </Typography>
+                            <Typography
+                                variant="body2"
+                                component="a"
+                                href="/terms"
+                                sx={{
+                                    color: 'text.secondary',
+                                    textDecoration: 'none',
+                                    '&:hover': { color: 'primary.main', textDecoration: 'underline' }
+                                }}
+                            >
+                                Terms and Conditions
+                            </Typography>
+                        </Box>
+
                         <Typography variant="body2" color="text.secondary" align="center">
                             © {new Date().getFullYear()} Bichat. All rights reserved.
                         </Typography>

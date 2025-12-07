@@ -252,7 +252,7 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
           transition: 'opacity 0.2s ease-in-out', // Smooth transition
         }}
         image={images[currentImageIndex]}
-        alt={`${profile.name} - photo ${currentImageIndex + 1}`}
+        alt={profile.name ? `${profile.name} - photo ${currentImageIndex + 1}` : `User Profile - photo ${currentImageIndex + 1}`}
       // loading="lazy" // Removed lazy loading for instant swaps on carousel
       />
 

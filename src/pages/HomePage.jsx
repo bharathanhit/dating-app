@@ -96,6 +96,17 @@ const HomePage = () => {
           description="Browse profiles and find your perfect match on Bichat. Connect with singles in your area looking for meaningful relationships."
           keywords="dating profiles, browse singles, find matches, online dating, meet people, Bichat"
           url="https://bichat-make-friendswith-bichat.netlify.app/"
+          schema={{
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Bichat",
+            "url": "https://bichat-make-friendswith-bichat.netlify.app/",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": "https://bichat-make-friendswith-bichat.netlify.app/?search={search_term_string}",
+              "query-input": "required name=search_term_string"
+            }
+          }}
         />
         <Container maxWidth="lg" sx={{ pb: { xs: 12, sm: 10 }, mt: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
