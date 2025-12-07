@@ -16,6 +16,8 @@ import WhoLikedMePage from './pages/WhoLikedMePage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import CoinsPage from './pages/CoinsPage.jsx';
 import PublicProfilePage from './pages/PublicProfilePage.jsx';
+import ContactPage from './pages/ContactPage.jsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import LikeNotification from './components/LikeNotification.jsx';
 import './App.css';
 
@@ -108,6 +110,8 @@ const App = () => {
                     </ProtectedOnboardingRoute>
                   }
                 />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
               </Routes>
             </main>
             <Footer />

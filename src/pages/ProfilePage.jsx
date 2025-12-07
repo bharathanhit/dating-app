@@ -12,6 +12,7 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  Autocomplete,
 } from '@mui/material';
 import { Edit } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
@@ -63,11 +64,18 @@ const SwipeableProfileCard = ({ profile, onLike, onPass }) => {
         }}
       >
         <CardContent>
-          <Typography variant="h5" gutterBottom>
-            {profile.name}
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Profile Preview
           </Typography>
+          {profile.location && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                📍 {profile.location}
+              </Typography>
+            </Box>
+          )}
           <Typography variant="body2" color="text.secondary">
-            {profile.bio}
+            {profile.bio || 'No bio added yet'}
           </Typography>
         </CardContent>
       </Card>
@@ -79,12 +87,16 @@ const ProfilePage = () => {
   const { user, profile, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: '', bio: '', interests: [], location: '' });
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+
+  // Gallery management
+  // Items: { type: 'url' | 'file', content: string | File, id: string }
+  const [galleryItems, setGalleryItems] = useState([]);
+
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   // Initialize form from profile when entering edit mode
   const startEdit = () => {
@@ -94,8 +106,16 @@ const ProfilePage = () => {
       interests: profile?.interests || [],
       location: profile?.location || '',
     });
-    setImagePreview(profile?.image || profile?.avatar || null);
-    setImageFile(null);
+
+    // Initialize gallery
+    let initialItems = [];
+    if (profile?.images && profile.images.length > 0) {
+      initialItems = profile.images.map((url, i) => ({ type: 'url', content: url, id: `old-${i}` }));
+    } else if (profile?.image || profile?.avatar) {
+      initialItems = [{ type: 'url', content: profile.image || profile.avatar, id: 'old-main' }];
+    }
+    setGalleryItems(initialItems);
+
     setError('');
     setEditing(true);
   };
@@ -104,6 +124,24 @@ const ProfilePage = () => {
     setEditing(false);
     setError('');
     setUploadProgress(0);
+    setGalleryItems([]);
+  };
+
+  const handleAddPhoto = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newItems = Array.from(files).map((file, i) => ({
+        type: 'file',
+        content: file,
+        preview: URL.createObjectURL(file), // for display
+        id: `new-${Date.now()}-${i}`
+      }));
+      setGalleryItems(prev => [...prev, ...newItems]);
+    }
+  };
+
+  const handleRemovePhoto = (id) => {
+    setGalleryItems(prev => prev.filter(item => item.id !== id));
   };
 
   const handleSave = async () => {
@@ -116,20 +154,46 @@ const ProfilePage = () => {
     setError('');
 
     try {
-      let imageUrl = profile?.image || profile?.avatar || null;
-      if (imageFile) {
-        try {
-          // upload to Firebase Storage and get download URL
-          imageUrl = await uploadProfileImage(user.uid, imageFile, (p) => setUploadProgress(p));
-        } catch (e) {
-          console.error('Failed to upload image file', e);
-          throw e;
+      // Process images
+      // 1. Upload new files
+      // 2. Collect all URLs
+      const finalImageUrls = [];
+      const totalNewFiles = galleryItems.filter(item => item.type === 'file').length;
+      let processedFiles = 0;
+
+      for (const item of galleryItems) {
+        if (item.type === 'url') {
+          finalImageUrls.push(item.content);
+        } else if (item.type === 'file') {
+          try {
+            // Update progress based on count
+            if (totalNewFiles > 0) {
+              const baseProgress = (processedFiles / totalNewFiles) * 100;
+              setUploadProgress(baseProgress);
+            }
+
+            // Upload
+            const url = await uploadProfileImage(user.uid, item.content);
+            finalImageUrls.push(url);
+            processedFiles++;
+
+          } catch (e) {
+            console.error('Failed to upload image file', e);
+            // decide whether to fail all or continue? Let's continue but warn? 
+            // For now, fail safe
+            throw new Error('Failed to upload one or more images');
+          }
         }
       }
 
+      setUploadProgress(100);
+
+      const mainImage = finalImageUrls.length > 0 ? finalImageUrls[0] : null;
+
       await updateUserProfile(user.uid, {
         ...form,
-        image: imageUrl,
+        image: mainImage, // Legacy support
+        images: finalImageUrls, // New multi-photo array
         profileComplete: true,
       });
 
@@ -140,23 +204,13 @@ const ProfilePage = () => {
       console.error('Failed to save profile', err);
       let msg = err.message || 'Failed to save profile';
       if (msg.includes('Network Error') || msg.includes('network') || !msg) {
-        msg = 'Network error. If you are developing locally, this may be a CORS issue with Firebase Storage. Check the console for details.';
+        msg = 'Network error. Check your connection or Firebase Storage rules.';
       }
       setError(msg);
     } finally {
       setLoading(false);
       setUploadProgress(0);
     }
-  };
-
-  const handleLike = (profile) => {
-    console.log('Liked profile:', profile);
-    // Add logic to handle liking the profile
-  };
-
-  const handlePass = (profile) => {
-    console.log('Passed profile:', profile);
-    // Add logic to handle passing the profile
   };
 
   if (!profile) {
@@ -166,6 +220,9 @@ const ProfilePage = () => {
       </Container>
     );
   }
+
+  // Determine main display image (for view mode)
+  const mainDisplayImage = profile.image || profile.avatar || 'https://via.placeholder.com/150';
 
   return (
     <>
@@ -178,40 +235,112 @@ const ProfilePage = () => {
         <Card sx={{ mt: 2, mb: 2 }}>
           <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
             <Grid container spacing={{ xs: 2, md: 3 }} alignItems="flex-start">
-              <Grid item xs={12} md={4} display="flex" justifyContent="center" flexDirection="column" alignItems="center">
-                <Avatar
-                  src={imagePreview || profile.image || profile.avatar}
-                  sx={{
-                    width: { xs: 120, md: 160 },
-                    height: { xs: 120, md: 160 },
-                    mb: 1,
-                  }}
-                />
 
-                {editing ? (
-                  <>
-                    <input
-                      ref={fileInputRef}
-                      accept="image/*"
-                      id="profile-image-input"
-                      type="file"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const f = e.target.files && e.target.files[0];
-                        if (f) {
-                          setImageFile(f);
-                          setImagePreview(URL.createObjectURL(f));
+              {/* Left Column: Photos (Edit Mode) or Main Avatar (View Mode) */}
+              <Grid item xs={12} md={4} display="flex" flexDirection="column" alignItems="center">
+
+                {!editing ? (
+                  // View Mode: Simple Avatar
+                  <Avatar
+                    src={mainDisplayImage}
+                    sx={{
+                      width: { xs: 120, md: 160 },
+                      height: { xs: 120, md: 160 },
+                      mb: 1,
+                      border: '4px solid white',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}
+                  />
+                ) : (
+                  // Edit Mode: Photo Gallery Grid
+                  <Box sx={{ width: '100%', mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                      Photos ({galleryItems.length}/8)
+                    </Typography>
+
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+                      {Array.from({ length: 8 }).map((_, index) => {
+                        const item = galleryItems[index];
+                        if (item) {
+                          return (
+                            <Box
+                              key={item.id}
+                              sx={{
+                                position: 'relative',
+                                aspectRatio: '1/1',
+                                borderRadius: 2,
+                                overflow: 'hidden',
+                                border: index === 0 ? '2px solid #754bffff' : '1px solid #ddd'
+                              }}
+                            >
+                              <img
+                                src={item.type === 'file' ? item.preview : item.content}
+                                alt={`upload-${index}`}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              />
+                              {index === 0 && (
+                                <Box sx={{
+                                  position: 'absolute', bottom: 0, left: 0, width: '100%',
+                                  bgcolor: 'rgba(117, 75, 255, 0.8)', color: 'white',
+                                  fontSize: '0.6rem', textAlign: 'center', py: 0.5
+                                }}>
+                                  Main
+                                </Box>
+                              )}
+                              <Box
+                                onClick={() => handleRemovePhoto(item.id)}
+                                sx={{
+                                  position: 'absolute', top: 2, right: 2,
+                                  bgcolor: 'rgba(0,0,0,0.6)', color: 'white',
+                                  width: 20, height: 20, borderRadius: '50%',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', fontSize: '1rem', lineHeight: 1
+                                }}
+                              >
+                                &times;
+                              </Box>
+                            </Box>
+                          );
+                        } else {
+                          return (
+                            <Box
+                              key={`empty-${index}`}
+                              onClick={() => galleryInputRef.current?.click()}
+                              sx={{
+                                aspectRatio: '1/1',
+                                borderRadius: 2,
+                                border: '2px dashed #ccc',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: 'text.secondary',
+                                bgcolor: '#fafafa',
+                                transition: 'all 0.2s',
+                                '&:hover': { bgcolor: '#f0f0f0', borderColor: '#999' }
+                              }}
+                            >
+                              <Typography variant="h5" sx={{ color: '#ddd' }}>+</Typography>
+                            </Box>
+                          );
                         }
-                      }}
-                    />
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Button size="small" onClick={() => fileInputRef.current?.click()}>Choose Photo</Button>
-                      <Button size="small" onClick={() => { setImageFile(null); setImagePreview(null); }}>Remove</Button>
+                      })}
                     </Box>
-                  </>
-                ) : null}
+                    <input
+                      ref={galleryInputRef}
+                      accept="image/*"
+                      type="file"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleAddPhoto}
+                    />
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary', textAlign: 'center' }}>
+                      First photo is your main profile picture.
+                    </Typography>
+                  </Box>
+                )}
+
               </Grid>
 
+              {/* Right Column: Text Fields */}
               <Grid item xs={12} md={8}>
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
                   <Box sx={{ width: '100%' }}>
@@ -231,13 +360,34 @@ const ProfilePage = () => {
                         )}
                       </>
                     ) : (
-                      <TextField
-                        label="Full name"
-                        fullWidth
-                        value={form.name}
-                        onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                        sx={{ mb: 2 }}
-                      />
+                      <>
+                        <TextField
+                          label="Full name"
+                          fullWidth
+                          value={form.name}
+                          onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                          sx={{ mb: 2 }}
+                        />
+                        <Autocomplete
+                          options={[
+                            'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur',
+                            'Vellore', 'Thanjavur', 'Thoothukudi', 'Dindigul', 'Erode', 'Kancheepuram',
+                            'Tiruvallur', 'Tirunelveli', 'Kanyakumari', 'Nagapattinam', 'Namakkal',
+                            'Krishnagiri', 'Pudukkottai', 'Ramanathapuram', 'Sivaganga', 'Villupuram',
+                            'Ariyalur', 'Cuddalore', 'Perambalur', 'Chengalpattu', 'Ranipet', 'Tenkasi', 'Mayiladuthurai'
+                          ]}
+                          value={form.location || null}
+                          onChange={(e, val) => setForm((p) => ({ ...p, location: val || '' }))}
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Location (Tamil Nadu)"
+                              placeholder="Select your district"
+                            />
+                          )}
+                          sx={{ mb: 2 }}
+                        />
+                      </>
                     )}
                   </Box>
 
@@ -248,7 +398,7 @@ const ProfilePage = () => {
                     size="small"
                     sx={{ mt: { xs: 1, sm: 0 } }}
                   >
-                    {editing ? 'Cancel' : 'Edit'}
+                    {editing ? 'Cancel' : 'Edit Profile'}
                   </Button>
                 </Box>
 
@@ -293,27 +443,25 @@ const ProfilePage = () => {
                   {editing ? (
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <Button variant="contained" onClick={handleSave} disabled={loading}>
-                        {loading ? <CircularProgress size={20} /> : 'Save'}
+                        {loading ? <CircularProgress size={20} /> : 'Save Changes'}
                       </Button>
                       <Button variant="outlined" onClick={cancelEdit} disabled={loading}>Cancel</Button>
                     </Box>
                   ) : null}
 
                   {uploadProgress > 0 && uploadProgress < 100 && (
-                    <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>Uploading: {uploadProgress}%</Typography>
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>Uploading photos: {Math.round(uploadProgress)}%</Typography>
+                      <Box sx={{ width: '100%', height: 4, bgcolor: '#eee', borderRadius: 2 }}>
+                        <Box sx={{ width: `${uploadProgress}%`, height: '100%', bgcolor: 'primary.main', borderRadius: 2, transition: 'width 0.3s' }} />
+                      </Box>
+                    </Box>
                   )}
                 </Box>
               </Grid>
             </Grid>
           </CardContent>
         </Card>
-
-        {/* Swipeable profile card demo */}
-        <SwipeableProfileCard
-          profile={profile}
-          onLike={handleLike}
-          onPass={handlePass}
-        />
       </Container>
     </>
   );

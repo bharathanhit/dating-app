@@ -167,17 +167,17 @@ export const checkDailyLoginReward = async (userId) => {
     }
     
     // Award daily login bonus
-    const DAILY_LOGIN_REWARD = 20;
-    await addCoins(userId, DAILY_LOGIN_REWARD, 'daily_login');
+    // const DAILY_LOGIN_REWARD = 20;
+    // await addCoins(userId, DAILY_LOGIN_REWARD, 'daily_login');
     
-    // Update last login date
+    // Update last login date (still useful for tracking activity)
     await updateDoc(userDocRef, {
       lastLoginDate: today,
       updatedAt: serverTimestamp()
     });
     
-    console.log(`[coinService] Awarded ${DAILY_LOGIN_REWARD} coins for daily login to user ${userId}`);
-    return { awarded: true, coins: DAILY_LOGIN_REWARD };
+    console.log(`[coinService] Updated last login date for user ${userId} (No daily reward)`);
+    return { awarded: false, coins: 0 };
   } catch (error) {
     console.error('Error checking daily login reward:', error);
     return { awarded: false, coins: 0 };

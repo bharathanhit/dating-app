@@ -1,29 +1,14 @@
 import { useState, useEffect } from 'react';
 import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider, Badge, Chip, Tooltip } from '@mui/material';
-import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications, MonetizationOn } from '@mui/icons-material';
+import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications, MonetizationOn, ContactSupport, PrivacyTip, Chat } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
+
 import { useAuth } from '../context/AuthContext.jsx';
-import { subscribeToLikedBy } from '../services/userService';
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
-  const { user, logout, coins } = useAuth();
+  const { user, logout, coins, likeCount } = useAuth();
   const navigate = useNavigate();
-  const [likeCount, setLikeCount] = useState(0);
-
-  useEffect(() => {
-    let unsubscribe = () => { };
-
-    if (user?.uid) {
-      unsubscribe = subscribeToLikedBy(user.uid, (profiles) => {
-        setLikeCount(profiles.length);
-      });
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, [user?.uid]);
 
   const handleLogout = async () => {
     try {
@@ -52,19 +37,59 @@ const Navbar = () => {
     <>
       <AppBar position="static" sx={{ mb: { xs: 1, sm: 2 } }}>
         <Toolbar sx={{ px: { xs: 1, sm: 2 }, minHeight: { xs: 56, sm: 64 } }}>
-          <Typography
-            variant="h6"
+          <Box
             component={Link}
             to="/"
             sx={{
               flexGrow: 1,
+              display: 'flex',
+              alignItems: 'center',
               textDecoration: 'none',
-              color: 'white',
-              fontSize: { xs: '1.2rem', sm: '1.5rem' },
             }}
           >
-            BIXSOL
-          </Typography>
+            <Typography
+              variant="h4"
+              component="span"
+              sx={{
+                fontWeight: 500, // Condensed font needs weight to stand out, but it's narrow
+                // Gradient text: Navy -> Blurple -> Pink
+                background: 'linear-gradient(45deg, #0d0d9cff, #a153eaff, #5d2b5fff)',
+                backgroundSize: '200% auto',
+                animation: 'gradient 8s linear infinite', // Slower interactive feel
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                // Fallback color
+                color: '#56136aff',
+                WebkitTextStroke: '0px', // No stroke for clean condensed look
+                letterSpacing: '0px',
+                display: 'flex',
+                alignItems: 'center',
+                fontFamily: '"Roboto Condensed", sans-serif',
+                position: 'relative',
+                // Responsive font size
+                fontSize: { xs: '1.5rem', sm: '1.75rem', md: '2rem' },
+                '@keyframes gradient': {
+                  '0%': { backgroundPosition: '0% 50%' },
+                  '50%': { backgroundPosition: '100% 50%' },
+                  '100%': { backgroundPosition: '0% 50%' },
+                },
+              }}
+            >
+              Bich
+              <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center', ml: '1px', mr: '1px', mt: { xs: '4px', md: '9px' } }}>
+                <Chat sx={{
+                  fontSize: '0.8em',
+                  // Make icon match gradient or white? User had it white. 
+                  // Let's keep it white to stand out, or apply gradient?
+                  // Providing white with drop shadow as before but maybe refined.
+                  color: 'white',
+                  filter: 'drop-shadow(0px 2px 2px rgba(255, 243, 243, 0.1))'
+                }} />
+
+              </Box>
+              t
+            </Typography>
+          </Box>
 
           {/* Coin Balance - Show for logged in users */}
           {user && (
@@ -105,6 +130,12 @@ const Navbar = () => {
                   <Badge badgeContent={likeCount} color="error">
                     <Notifications />
                   </Badge>
+                </IconButton>
+                <IconButton component={Link} to="/contact" color="inherit" aria-label="contact" title="Contact Us">
+                  <ContactSupport />
+                </IconButton>
+                <IconButton component={Link} to="/privacy" color="inherit" aria-label="privacy" title="Privacy Policy">
+                  <PrivacyTip />
                 </IconButton>
                 <IconButton component={Link} to="/profile" color="inherit" aria-label="profile" title="Profile">
                   <Person />
@@ -189,6 +220,26 @@ const Navbar = () => {
                 <ListItemText primary={item.text} />
               </ListItem>
             ))}
+            <ListItem
+              button
+              component={Link}
+              to="/contact"
+              onClick={() => setOpen(false)}
+              sx={{ '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
+            >
+              <ListItemIcon><ContactSupport /></ListItemIcon>
+              <ListItemText primary="Contact Us" />
+            </ListItem>
+            <ListItem
+              button
+              component={Link}
+              to="/privacy"
+              onClick={() => setOpen(false)}
+              sx={{ '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' } }}
+            >
+              <ListItemIcon><PrivacyTip /></ListItemIcon>
+              <ListItemText primary="Privacy Policy" />
+            </ListItem>
             {user && <Divider />}
             {user ? (
               <ListItem

@@ -14,34 +14,36 @@ const CoinsPage = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
     // Coin packages
+    // Coin packages
     const coinPackages = [
         {
             id: 1,
-            name: '100 Coins',
-            amount: 100,
-            price: '$4.99',
+            name: '10 Coins',
+            amount: 10,
+            price: '₹10',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         },
         {
             id: 2,
-            name: '500 Coins',
-            amount: 500,
-            price: '$19.99',
-            originalPrice: '$24.95',
+            name: '25 Coins',
+            amount: 25,
+            price: '₹20',
+            priceColor: '#FFD700', // Gold color for price
+            originalPrice: '₹25',
             discount: '20% OFF',
-            popular: true,
+            popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
         },
         {
             id: 3,
-            name: '1000 Coins',
-            amount: 1000,
-            price: '$34.99',
-            originalPrice: '$49.90',
-            discount: '30% OFF',
-            popular: false,
-            gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            name: '62 Coins',
+            amount: 62,
+            price: '₹50',
+            originalPrice: '₹75',
+            discount: '33% OFF',
+            popular: true,
+            gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)', // Premium gradient
         },
     ];
 
@@ -207,7 +209,7 @@ const CoinsPage = () => {
                                             <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
                                                 {pkg.name}
                                             </Typography>
-                                            <Typography variant="h3" sx={{ fontWeight: 800, mb: 1 }}>
+                                            <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, color: pkg.priceColor || 'inherit', textShadow: pkg.priceColor ? '0px 2px 4px rgba(0,0,0,0.3)' : 'none' }}>
                                                 {pkg.price}
                                             </Typography>
                                             {pkg.originalPrice && (

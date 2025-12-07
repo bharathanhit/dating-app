@@ -2,30 +2,15 @@ import { Box, IconButton, Typography } from "@mui/material";
 import { Home, Favorite, Person, ChatBubble, Chat } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getRandomUser, subscribeToLikedBy } from "../services/userService";
+import { getRandomUser } from "../services/userService";
 import { useState, useEffect } from "react";
 import { Badge } from "@mui/material";
 
 const Footer = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, user } = useAuth();
+  const { profile, user, likeCount } = useAuth();
   const [isLoadingRandom, setIsLoadingRandom] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
-
-  useEffect(() => {
-    let unsubscribe = () => { };
-
-    if (user?.uid) {
-      unsubscribe = subscribeToLikedBy(user.uid, (profiles) => {
-        setLikeCount(profiles.length);
-      });
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, [user?.uid]);
 
   const isActive = (path) => location.pathname === path;
 
@@ -69,11 +54,31 @@ const Footer = () => {
   const arcStartX = svgCenterX - cutoutRadius;
   const arcEndX = svgCenterX + cutoutRadius;
 
-  // Path: Valley cutout
+  // Smoothing parameters
+  const smoothing = 12; // Corner radius
+  const yStart = svgTopY + smoothing;
+  // Calculate x point on the circle at yStart
+  // x = cx +/- sqrt(r^2 - (y - cy)^2). cy is svgTopY.
+  // y - cy = smoothing.
+  const halfChord = Math.sqrt(cutoutRadius * cutoutRadius - smoothing * smoothing);
+  const xCircleStart = svgCenterX - halfChord;
+  const xCircleEnd = svgCenterX + halfChord;
+
+  // Path: Valley cutout with rounded corners
+  // M 0,top -> L (start-smoothing),top 
+  // Q start,top xCircleStart,yStart (Curve into hole)
+  // A ... (Main arc)
+  // Q end,top (end+smoothing),top (Curve out) -> No, symmetric to entry
+  // Q end,top (line_start_on_right) ? No.
+  // Entry: Line to (arcStartX - smoothing), top. Q (arcStartX), top -> (xCircleStart), yStart.
+  // Exit: from (xCircleEnd), yStart -> Q (arcEndX), top -> (arcEndX + smoothing), top.
+
   const pathData = `
     M 0,${svgTopY} 
-    L ${arcStartX},${svgTopY} 
-    A ${cutoutRadius},${cutoutRadius} 0 0,0 ${arcEndX},${svgTopY} 
+    L ${arcStartX - smoothing},${svgTopY} 
+    Q ${arcStartX},${svgTopY} ${xCircleStart},${yStart}
+    A ${cutoutRadius},${cutoutRadius} 0 0,0 ${xCircleEnd},${yStart}
+    Q ${arcEndX},${svgTopY} ${arcEndX + smoothing},${svgTopY}
     L ${centerWidth},${svgTopY} 
     L ${centerWidth},${footerHeight} 
     L 0,${footerHeight} 
@@ -150,7 +155,7 @@ const Footer = () => {
             {/* Curved Text */}
             <text
               fontSize="13"
-              fill="#3a393cff"
+              fill="#ffffff"
               fontWeight="bold"
               fontFamily="cursive"
               letterSpacing="1"

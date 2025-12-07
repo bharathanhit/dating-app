@@ -222,17 +222,17 @@ const HomePage = () => {
                     profile={profile}
                     likeBtnId={`like-btn-${profile.uid}`}
                     passBtnId={`pass-btn-${profile.uid}`}
+                    status={swipeStatuses[idx]} // Pass status to card
                     sx={{
                       boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      border: '2px solid',
+                      border: swipeStatuses[idx] ? '4px solid' : '2px solid',
                       borderColor: swipeStatuses[idx] === 'liked'
-                        ? 'rgba(0, 255, 0, 0.5)'
+                        ? '#00e676' // Solid Green
                         : swipeStatuses[idx] === 'passed'
-                          ? 'rgba(255, 0, 0, 0.5)'
+                          ? '#ff1744' // Solid Red
                           : 'rgba(0,0,0,0.1)',
-                      borderRadius: '16px',
+                      borderRadius: '24px',
                       overflow: 'hidden',
-                      background: 'linear-gradient(135deg, #f8f4ff 0%, #fff 100%)',
                     }}
                   />
                 </motion.div>

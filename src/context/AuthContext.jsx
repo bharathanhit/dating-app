@@ -10,6 +10,7 @@ import {
 import { auth } from '../config/firebase.js';
 import { getUserProfile } from '../services/userService.js';
 import { subscribeToCoins, checkDailyLoginReward } from '../services/coinService.js';
+import { subscribeToLikedBy } from '../services/userService.js';
 
 // Create Auth Context
 const AuthContext = createContext(null);
@@ -19,6 +20,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [coins, setCoins] = useState(0);
+  // Initialize likeCount from localStorage to prevent flicker
+  const [likeCount, setLikeCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem('likeCount');
+      return saved ? parseInt(saved, 10) : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -67,6 +77,29 @@ export const AuthProvider = ({ children }) => {
       unsubscribeCoins();
     };
   }, [user?.uid]);
+
+  // Subscribe to likedBy to get like count
+  useEffect(() => {
+    let unsubscribeLikes = () => { };
+
+    if (user?.uid) {
+      unsubscribeLikes = subscribeToLikedBy(user.uid, (profiles) => {
+        const count = profiles.length;
+        setLikeCount(count);
+        // Persist to localStorage
+        try {
+          localStorage.setItem('likeCount', count.toString());
+        } catch (e) {
+          console.error('Failed to save like count', e);
+        }
+      });
+    }
+
+    return () => {
+      unsubscribeLikes();
+    };
+  }, [user?.uid]);
+
 
   // Helper to refresh profile from Firestore (useful after onboarding)
   const refreshProfile = async () => {
@@ -144,6 +177,7 @@ export const AuthProvider = ({ children }) => {
     user,
     profile,
     coins,
+    likeCount,
     loading,
     error,
     signup,
