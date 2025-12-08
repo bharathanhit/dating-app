@@ -15,9 +15,18 @@ import {
   TextField,
   useMediaQuery,
   useTheme,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Button,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useAuth } from "../context/AuthContext";
 import { deductCoins } from '../services/coinService';
 import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
@@ -28,11 +37,12 @@ import {
   setUserOnline,
   setUserOffline
 } from "../services/chatRealtimeService";
-import { getUserProfile } from "../services/userService";
+import { getUserProfile, getBlockedUsers, blockUser, unblockUser, isUserBlocked, reportUser } from "../services/userService";
 import { ref, onValue } from "firebase/database";
 import { realtimeDb } from "../config/firebase";
 import { getValidImageUrl } from "../utils/imageUtils";
 import SEOHead from "../components/SEOHead.jsx";
+import ReportDialog from "../components/ReportDialog";
 
 const IG_GRADIENT = "linear-gradient(135deg, #754bffff 0%, #7f0f98ff 100%)";
 
@@ -90,6 +100,11 @@ const MessagesPageV2 = () => {
   const [profileMap, setProfileMap] = useState({});
   const [status, setStatus] = useState(null);
   const [isRandomChat, setIsRandomChat] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [isOtherUserBlocked, setIsOtherUserBlocked] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Hide footer when a conversation is active
@@ -132,6 +147,19 @@ const MessagesPageV2 = () => {
     }
   }, [user?.uid]);
 
+  // Fetch blocked users
+  useEffect(() => {
+    if (!user?.uid) return;
+    (async () => {
+      try {
+        const blocked = await getBlockedUsers(user.uid);
+        setBlockedUsers(blocked);
+      } catch (error) {
+        console.error('Failed to fetch blocked users:', error);
+      }
+    })();
+  }, [user?.uid]);
+
   // Listen for conversations
   useEffect(() => {
     if (!user?.uid) return;
@@ -155,6 +183,27 @@ const MessagesPageV2 = () => {
 
     return () => unsubscribe();
   }, [user?.uid, profileMap]);
+
+  // Check if other user in active conversation is blocked
+  useEffect(() => {
+    if (!user?.uid || !activeConv) {
+      setIsOtherUserBlocked(false);
+      return;
+    }
+    const otherUid = activeConv.participants.find((id) => id !== user.uid);
+    if (!otherUid) {
+      setIsOtherUserBlocked(false);
+      return;
+    }
+    (async () => {
+      try {
+        const blocked = await isUserBlocked(user.uid, otherUid);
+        setIsOtherUserBlocked(blocked);
+      } catch (error) {
+        console.error('Failed to check if other user is blocked:', error);
+      }
+    })();
+  }, [user?.uid, activeConv]);
 
   // Handle initial conversation from location state OR query param
   useEffect(() => {
@@ -286,6 +335,67 @@ const MessagesPageV2 = () => {
     }
   };
 
+  const handleMenuOpen = (event) => {
+    setMenuAnchor(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+  };
+
+  const handleBlockClick = () => {
+    handleMenuClose();
+    setBlockDialogOpen(true);
+  };
+
+  const handleBlockConfirm = async () => {
+    const otherUid = activeConv?.participants.find((id) => id !== user?.uid);
+    if (!otherUid) return;
+
+    try {
+      if (isOtherUserBlocked) {
+        await unblockUser(user.uid, otherUid);
+        setIsOtherUserBlocked(false);
+        // Refresh blocked users list
+        const blocked = await getBlockedUsers(user.uid);
+        setBlockedUsers(blocked);
+        alert('User unblocked successfully');
+      } else {
+        await blockUser(user.uid, otherUid);
+        setIsOtherUserBlocked(true);
+        // Refresh blocked users list
+        const blocked = await getBlockedUsers(user.uid);
+        setBlockedUsers(blocked);
+        alert('User blocked successfully. This conversation will be hidden.');
+        // Close the conversation
+        setActiveConv(null);
+        setMobileShowList(true);
+      }
+      setBlockDialogOpen(false);
+    } catch (error) {
+      console.error('Error blocking/unblocking user:', error);
+      alert(`Failed to ${isOtherUserBlocked ? 'unblock' : 'block'} user: ${error.message || 'Unknown error'}. Please try again.`);
+    }
+  };
+
+  const handleReportClick = () => {
+    handleMenuClose();
+    setReportDialogOpen(true);
+  };
+
+  const handleReportSubmit = async (category, reason) => {
+    const otherUid = activeConv?.participants.find((id) => id !== user?.uid);
+    if (!otherUid) return;
+
+    try {
+      await reportUser(user.uid, otherUid, category, reason);
+      alert('Report submitted successfully. Our team will review it.');
+    } catch (error) {
+      console.error('Error reporting user:', error);
+      throw error;
+    }
+  };
+
   // Build grouped messages by date for rendering
   const grouped = useMemo(() => {
     const sorted = Array.isArray(messages)
@@ -293,6 +403,14 @@ const MessagesPageV2 = () => {
       : [];
     return groupMessagesByDate(sorted);
   }, [messages]);
+
+  // Filter conversations to exclude blocked users
+  const filteredConversations = useMemo(() => {
+    return conversations.filter((c) => {
+      const other = (c.participants || []).find((id) => id !== user?.uid);
+      return other && !blockedUsers.includes(other);
+    });
+  }, [conversations, blockedUsers, user?.uid]);
 
   // header info: other profile
   const otherUid = activeConv ? (activeConv.participants || []).find((id) => id !== user?.uid) : null;
@@ -329,6 +447,9 @@ const MessagesPageV2 = () => {
                   {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
                 </Typography>
               </Box>
+              <IconButton onClick={handleMenuOpen} size="small" sx={{ ml: "auto" }}>
+                <MoreVertIcon />
+              </IconButton>
             </Box>
           )}
         </Box>
@@ -339,7 +460,7 @@ const MessagesPageV2 = () => {
             <Grid item xs={12} md={3} sx={{ borderRight: !isMobile ? "1px solid rgba(0,0,0,0.04)" : "none", height: "100%", overflowY: "auto", bgcolor: "#fff" }}>
               <Box sx={{ py: 1 }}>
                 <List disablePadding>
-                  {conversations.map((c) => {
+                  {filteredConversations.map((c) => {
                     const other = (c.participants || []).find((id) => id !== user?.uid) || (c.participants || [])[0];
                     const prof = other ? profileMap[other] : null;
                     return (
@@ -360,7 +481,7 @@ const MessagesPageV2 = () => {
                       </Box>
                     );
                   })}
-                  {conversations.length === 0 && (
+                  {filteredConversations.length === 0 && (
                     <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>No conversations yet.</Box>
                   )}
                 </List>
@@ -378,12 +499,15 @@ const MessagesPageV2 = () => {
                     <ArrowBackIcon />
                   </IconButton>
                   <Avatar src={getValidImageUrl(otherProfile?.image)} />
-                  <Box>
+                  <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
                     <Typography variant="caption" sx={{ color: "text.secondary" }}>
                       {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
                     </Typography>
                   </Box>
+                  <IconButton onClick={handleMenuOpen} size="small">
+                    <MoreVertIcon />
+                  </IconButton>
                 </Box>
               )}
 
@@ -477,6 +601,44 @@ const MessagesPageV2 = () => {
             </Grid>
           )}
         </Grid>
+
+        {/* Menu */}
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={handleMenuClose}
+        >
+          <MenuItem onClick={handleBlockClick}>
+            {isOtherUserBlocked ? 'Unblock User' : 'Block User'}
+          </MenuItem>
+          <MenuItem onClick={handleReportClick}>Report User</MenuItem>
+        </Menu>
+
+        {/* Block Confirmation Dialog */}
+        <Dialog open={blockDialogOpen} onClose={() => setBlockDialogOpen(false)}>
+          <DialogTitle>{isOtherUserBlocked ? 'Unblock User' : 'Block User'}?</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              {isOtherUserBlocked
+                ? `Are you sure you want to unblock ${otherProfile?.name || 'this user'}? You will be able to see their messages again.`
+                : `Are you sure you want to block ${otherProfile?.name || 'this user'}? You won't receive messages from them and this conversation will be hidden.`}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setBlockDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleBlockConfirm} color="error" variant="contained">
+              {isOtherUserBlocked ? 'Unblock' : 'Block'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Report Dialog */}
+        <ReportDialog
+          open={reportDialogOpen}
+          onClose={() => setReportDialogOpen(false)}
+          onSubmit={handleReportSubmit}
+          reportedUserName={otherProfile?.name}
+        />
       </Container>
     </>
   );

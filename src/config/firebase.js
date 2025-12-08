@@ -3,6 +3,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
+import { getFunctions } from 'firebase/functions';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -30,5 +31,8 @@ export const storage = getStorage(app);
 
 // Initialize Realtime Database
 export const realtimeDb = getDatabase(app);
+
+// Initialize Cloud Functions
+export const functions = getFunctions(app);
 
 export default app;

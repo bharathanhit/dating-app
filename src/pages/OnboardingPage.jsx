@@ -16,7 +16,9 @@ import {
   Stepper,
   Step,
   StepLabel,
+  IconButton,
 } from "@mui/material";
+import { Delete, AddCircle } from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { createUserProfile, uploadProfileImage } from "../services/userService";
@@ -30,8 +32,9 @@ import "@fontsource/poppins/600.css";
 import "@fontsource/poppins/700.css";
 import "@fontsource/dancing-script/400.css";
 import "@fontsource/dancing-script/700.css";
+import ImageCropper from "../components/ImageCropper";
 
-const steps = ["Personal Info", "Photo", "Preferences", "Bio", "Review & Confirm"];
+const steps = ["Personal Info", "Photos", "Preferences", "Bio", "Review & Confirm"];
 const INTERESTS_LIST = [
   "Travel", "Sports", "Gaming", "Music", "Art", "Movies",
   "Cooking", "Reading", "Photography", "Fitness", "Yoga",
@@ -48,10 +51,16 @@ export default function OnboardingPage() {
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
-  const [imageUrl, setImageUrl] = useState('');
-  const [imagePreview, setImagePreview] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
+  // Multi-image state
+  const [imageFiles, setImageFiles] = useState([]); // Array of File objects
+  const [imagePreviews, setImagePreviews] = useState([]); // Array of blob URLs
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+
+  // Cropper State
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [tempCropImage, setTempCropImage] = useState(null);
+  const [originalFileName, setOriginalFileName] = useState('profile-image.jpg');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
@@ -126,13 +135,13 @@ export default function OnboardingPage() {
     try {
       if (!user || !user.uid) throw new Error("User not authenticated");
 
-      let finalImageUrl = imageUrl || null;
-      if (imageFile) {
-        try {
-          finalImageUrl = await uploadProfileImage(user.uid, imageFile, setImageUploadProgress);
-        } catch (uploadErr) {
-          console.error("Image processing failed", uploadErr);
-          throw new Error("Failed to process image. Please try a smaller image or use a URL.");
+      let finalImageUrls = [];
+      if (imageFiles.length > 0) {
+        for (let i = 0; i < imageFiles.length; i++) {
+          // Update progress roughly
+          setImageUploadProgress(Math.round(((i + 1) / imageFiles.length) * 100));
+          const base64 = await uploadProfileImage(user.uid, imageFiles[i]);
+          finalImageUrls.push(base64);
         }
       }
 
@@ -140,7 +149,8 @@ export default function OnboardingPage() {
         ...formData,
         email: user.email,
         profileComplete: true,
-        image: finalImageUrl,
+        image: finalImageUrls.length > 0 ? finalImageUrls[0] : null,
+        images: finalImageUrls,
       });
 
       await refreshProfile();
@@ -150,6 +160,45 @@ export default function OnboardingPage() {
       setError(err.message || 'Failed to save profile');
       setLoading(false);
     }
+  };
+
+  const handleFileChange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) {
+      setOriginalFileName(f.name);
+      setTempCropImage(URL.createObjectURL(f));
+      setCropModalOpen(true);
+      // Reset input value to allow re-selection
+      e.target.value = null;
+    }
+  };
+
+  const handleCropComplete = (croppedBlob) => {
+    if (!croppedBlob) {
+      setCropModalOpen(false);
+      return;
+    }
+    const file = new File([croppedBlob], originalFileName, { type: "image/jpeg" });
+    setImageFiles(prev => [...prev, file]);
+    setImagePreviews(prev => [...prev, URL.createObjectURL(file)]);
+    setCropModalOpen(false);
+    setTempCropImage(null);
+  };
+
+  const handleRemoveImage = (index) => {
+    const newFiles = [...imageFiles];
+    const newPreviews = [...imagePreviews];
+    // Revoke URL to avoid memory leak
+    URL.revokeObjectURL(newPreviews[index]);
+    newFiles.splice(index, 1);
+    newPreviews.splice(index, 1);
+    setImageFiles(newFiles);
+    setImagePreviews(newPreviews);
+  };
+
+  const handleCropCancel = () => {
+    setCropModalOpen(false);
+    setTempCropImage(null);
   };
 
   const renderStepContent = () => {
@@ -180,26 +229,100 @@ export default function OnboardingPage() {
         return (
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <Box sx={{ background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 244, 255, 0.95))", border: "2px solid rgba(122, 47, 255, 0.3)", borderRadius: 3, p: 3, boxShadow: "0 4px 20px rgba(122, 47, 255, 0.1)", display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
-              <Typography sx={{ color: '#7a2fff', fontWeight: 700 }}>Add a profile photo (optional)</Typography>
-              {imagePreview ? (
-                <Box sx={{ width: 160, height: 160, borderRadius: '50%', overflow: 'hidden', mb: 1 }}>
-                  <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                </Box>
-              ) : (
-                <Box sx={{ width: 160, height: 160, borderRadius: '50%', background: 'rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                  <Typography variant="caption" sx={{ color: '#666' }}>No photo selected</Typography>
-                </Box>
-              )}
+              <Typography sx={{ color: '#7a2fff', fontWeight: 700 }}>Add your photos (Max 8)</Typography>
+
+              {/* Photos Carousel */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 2,
+                  overflowX: 'auto',
+                  width: '100%',
+                  py: 2,
+                  px: 1,
+                  '&::-webkit-scrollbar': { height: 6 },
+                  '&::-webkit-scrollbar-track': { background: '#f1f1f1', borderRadius: 3 },
+                  '&::-webkit-scrollbar-thumb': { background: '#c4a6fb', borderRadius: 3 },
+                }}
+              >
+                {imagePreviews.map((src, index) => (
+                  <Box key={index} sx={{ position: 'relative', flexShrink: 0 }}>
+                    <Box sx={{ width: 140, height: 180, borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                      <img src={src} alt={`profile-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveImage(index)}
+                      sx={{
+                        position: 'absolute',
+                        top: 5,
+                        right: 5,
+                        background: 'rgba(255,255,255,0.9)',
+                        color: '#ff4444',
+                        '&:hover': { background: '#fff' }
+                      }}
+                    >
+                      <Delete fontSize="small" />
+                    </IconButton>
+                    {index === 0 && (
+                      <Chip
+                        label="Main"
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          bottom: 5,
+                          left: 5,
+                          background: 'rgba(122, 47, 255, 0.9)',
+                          color: 'white',
+                          fontSize: '0.65rem'
+                        }}
+                      />
+                    )}
+                  </Box>
+                ))}
+
+                {/* Add Button */}
+                {imagePreviews.length < 8 && (
+                  <Box sx={{ flexShrink: 0 }}>
+                    <input accept="image/*" id="profile-image-input" type="file" style={{ display: 'none' }} onChange={handleFileChange} />
+                    <label htmlFor="profile-image-input">
+                      <Box
+                        sx={{
+                          width: 140,
+                          height: 180,
+                          borderRadius: 3,
+                          border: '2px dashed #c4a6fb',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': { background: 'rgba(122, 47, 255, 0.05)', borderColor: '#7a2fff' }
+                        }}
+                      >
+                        <AddCircle sx={{ fontSize: 40, color: '#c4a6fb', mb: 1 }} />
+                        <Typography variant="body2" sx={{ color: '#7a2fff', fontWeight: 600 }}>Add Photo</Typography>
+                      </Box>
+                    </label>
+                  </Box>
+                )}
+              </Box>
+
               {imageUploadProgress > 0 && imageUploadProgress < 100 && (
                 <Typography variant="caption">{`Uploading: ${imageUploadProgress}%`}</Typography>
               )}
-              <input accept="image/*" id="profile-image-input" type="file" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) { setImageFile(f); setImagePreview(URL.createObjectURL(f)); setImageUrl(''); } }} />
-              <label htmlFor="profile-image-input"><Button component="span" sx={{ borderRadius: 3 }}>Choose Photo</Button></label>
-              <Typography variant="caption" sx={{ color: '#666', mt: 1 }}>or paste image URL:</Typography>
-              <TextField fullWidth placeholder="https://example.com/image.jpg" size="small" value={imageUrl} onChange={(e) => { const url = e.target.value; setImageUrl(url); if (url) setImagePreview(url); }} />
+
               <Box sx={{ display: 'flex', gap: 2, mt: 1, width: '100%' }}>
-                <Button variant="outlined" fullWidth onClick={() => { setImageUrl(''); setImagePreview(null); setImageFile(null); setActiveStep((s) => s + 1); }} sx={{ borderRadius: 3 }}>Skip</Button>
-                <Button variant="contained" fullWidth onClick={() => setActiveStep((s) => s + 1)} sx={{ borderRadius: 3 }}>Next</Button>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={() => setActiveStep((s) => s + 1)}
+                  disabled={imagePreviews.length === 0}
+                  sx={{ borderRadius: 3, background: imagePreviews.length > 0 ? "linear-gradient(135deg, #7a2fff, #ff5fa2)" : "#e0e0e0" }}
+                >
+                  {imagePreviews.length > 0 ? "Next" : "Add at least 1 photo"}
+                </Button>
               </Box>
             </Box>
           </motion.div>
@@ -281,6 +404,17 @@ export default function OnboardingPage() {
             <Button onClick={handleNext} variant="contained" sx={{ borderRadius: 3, flex: 1, background: "linear-gradient(135deg, #7a2fff, #ff5fa2)", color: "white" }}>Next</Button>
           )}
         </Box>
+      )}
+
+      {/* Image Cropper */}
+      {cropModalOpen && tempCropImage && (
+        <ImageCropper
+          open={cropModalOpen}
+          image={tempCropImage}
+          onComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+        />
       )}
     </Container>
   );

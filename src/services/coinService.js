@@ -1,5 +1,7 @@
 import { db } from '../config/firebase.js';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, orderBy, limit, getDocs, onSnapshot, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { functions } from '../config/firebase.js';
+import { httpsCallable } from 'firebase/functions';
 
 /**
  * Get user's current coin balance
@@ -189,7 +191,7 @@ export const checkDailyLoginReward = async (userId) => {
  * @param {string} userId - User ID
  * @param {number} limitCount - Number of transactions to fetch
  * @returns {Promise<Array>} Array of transactions
- */
+ * */
 export const getCoinTransactions = async (userId, limitCount = 50) => {
   try {
     const transactionsCol = collection(db, 'users', userId, 'coinTransactions');
@@ -263,19 +265,34 @@ export const initializeUserCoins = async (userId) => {
 };
 
 /**
- * Process coin purchase (UI only - no real payment processing)
+ * Submit payment proof for manual verification
  * @param {string} userId - User ID
- * @param {number} amount - Amount of coins to purchase
- * @param {string} packageName - Name of the package purchased
- * @returns {Promise<boolean>} Success status
+ * @param {number} amount - Amount of coins
+ * @param {string} packageName - Package name
+ * @param {number} price - Price
+ * @param {string} packageId - Package ID
+ * @param {string} transactionId - User submitted UTR/Reference ID
+ * @returns {Promise<object>} Result
  */
-export const purchaseCoins = async (userId, amount, packageName) => {
+export const submitPaymentProof = async (userId, amount, packageName, price, packageId, transactionId) => {
   try {
-    await addCoins(userId, amount, `purchase_${packageName}`);
-    console.log(`[coinService] User ${userId} purchased ${amount} coins (${packageName})`);
-    return true;
+    const submitProofFn = httpsCallable(functions, 'submitPaymentProof');
+    
+    // Parse price to number
+    const numericPrice = typeof price === 'string' ? parseFloat(price.replace(/[^0-9.]/g, '')) : price;
+
+    const result = await submitProofFn({
+      amount: amount,
+      packageName: packageName,
+      price: numericPrice,
+      packageId: packageId || `pkg_${amount}_coins`,
+      transactionId: transactionId
+    });
+
+    console.log(`[coinService] Submitted payment proof for ${transactionId}`);
+    return result.data; 
   } catch (error) {
-    console.error('Error processing coin purchase:', error);
+    console.error('Error submitting payment proof:', error);
     throw error;
   }
 };
@@ -315,19 +332,3 @@ export const unlockLikesFeature = async (userId) => {
     return { success: false, error: error.message };
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

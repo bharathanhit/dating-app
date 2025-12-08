@@ -1,7 +1,7 @@
 import { db } from '../config/firebase.js';
 import { realtimeDb } from '../config/firebase.js';
 import { ref, get } from 'firebase/database';
-import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc, onSnapshot, addDoc } from 'firebase/firestore';
 
 
 // Create or update user profile
@@ -29,8 +29,14 @@ export const createUserProfile = async (userId, profileData) => {
       userDocRef,
       {
         ...dataToSave,
-        coins: 0, // Initialize with 0 coins
+        coins: 20, // Initialize with 20 coins for new users
         lastLoginDate: null, // Track last login for daily rewards
+        // Moderation tracking
+        isBlocked: false, // Whether user is currently blocked/banned
+        blockReason: null, // Reason for block if blocked
+        blockCount: 0, // Number of times user has been blocked
+        reportCount: 0, // Number of times user has been reported
+        blockedAt: null, // Timestamp of when user was blocked
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -421,7 +427,307 @@ const getOnlineUsers = async () => {
   }
 };
 
+// Helper function to create warning notifications based on threshold
+const createWarningNotification = async (userId, type, count, severity) => {
+  try {
+    const notificationsCol = collection(db, 'users', userId, 'notifications');
+    
+    let title, message, emoji;
+    
+    if (severity === 'warning') {
+      emoji = '⚠️';
+      if (type === 'report') {
+        title = 'Multiple Reports Received';
+        message = `You have been reported by multiple users (${count} reports) for violating community guidelines.\n\nContinued violations may result in:\n• Temporary account suspension\n• Permanent ban from Bichat\n\nPlease review our Terms and Conditions.`;
+      } else {
+        title = 'Multiple Users Have Blocked You';
+        message = `Multiple users (${count}) have blocked you. This may indicate behavior that violates our community guidelines.\n\nPlease ensure you:\n• Respect other users\n• Follow community guidelines\n• Maintain appropriate conduct\n\nContinued issues may result in account restrictions.`;
+      }
+    } else if (severity === 'severe') {
+      emoji = '🚨';
+      title = 'Serious Warning';
+      if (type === 'report') {
+        message = `Your account has received ${count} reports from other users. This is a serious violation of our community guidelines.\n\nImmediate action required:\n• Review our Terms and Conditions\n• Correct your behavior\n• Respect community standards\n\nFailure to comply will result in account suspension.`;
+      } else {
+        message = `${count} users have blocked you. This indicates serious concerns about your behavior on Bichat.\n\nYour account is under review. Please:\n• Review our community guidelines\n• Ensure respectful interactions\n• Maintain appropriate conduct\n\nFurther violations will result in permanent ban.`;
+      }
+    } else { // critical
+      emoji = '🔴';
+      title = 'Final Warning - Account at Risk';
+      if (type === 'report') {
+        message = `FINAL WARNING: Your account has received ${count} reports. This is your last warning before permanent account suspension.\n\n⚠️ IMMEDIATE ACTION REQUIRED ⚠️\n\nYour account will be permanently banned if you:\n• Receive any additional reports\n• Continue violating guidelines\n• Fail to comply with our Terms\n\nThis is your final opportunity to correct your behavior.`;
+      } else {
+        message = `FINAL WARNING: ${count} users have blocked you. Your account is at immediate risk of permanent suspension.\n\n⚠️ CRITICAL STATUS ⚠️\n\nYour account will be permanently banned if:\n• More users block you\n• You continue inappropriate behavior\n• You violate community guidelines\n\nThis is your last warning.`;
+      }
+    }
+    
+    const notificationData = {
+      type: `${type}_warning`,
+      title: `${emoji} ${title}`,
+      message,
+      severity,
+      count,
+      read: false,
+      createdAt: serverTimestamp(),
+    };
+    
+    await addDoc(notificationsCol, notificationData);
+    console.log(`[createWarningNotification] Created ${severity} ${type} notification for user ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('[createWarningNotification] Failed to create notification:', error);
+    throw error;
+  }
+};
+
+// Block a user by adding to blockedUsers subcollection
+export const blockUser = async (userId, blockedUserId) => {
+  try {
+    console.log(`[blockUser] User ${userId} blocking ${blockedUserId}`);
+    
+    // Step 1: Add to blocker's blockedUsers subcollection
+    const blockedUserRef = doc(collection(db, 'users', userId, 'blockedUsers'), blockedUserId);
+    await setDoc(blockedUserRef, {
+      uid: blockedUserId,
+      blockedAt: serverTimestamp(),
+    });
+    console.log(`[blockUser] ✓ Added to blocker's blockedUsers list`);
+    
+    // Step 2: Create block record in top-level blocks collection for admin review
+    try {
+      const blocksCol = collection(db, 'blocks');
+      await addDoc(blocksCol, {
+        blockerId: userId,
+        blockedUserId: blockedUserId,
+        timestamp: serverTimestamp(),
+      });
+      console.log(`[blockUser] ✓ Block record created in blocks collection`);
+    } catch (error) {
+      console.error('[blockUser] ✗ Failed to create block record:', error);
+      // Don't throw - this shouldn't block the main operation
+    }
+    
+    // Step 3: Increment blockCount on the blocked user's profile
+    try {
+      const blockedUserDocRef = doc(db, 'users', blockedUserId);
+      const blockedUserDoc = await getDoc(blockedUserDocRef);
+      
+      if (blockedUserDoc.exists()) {
+        const currentBlockCount = blockedUserDoc.data()?.blockCount || 0;
+        const newBlockCount = currentBlockCount + 1;
+        
+        await updateDoc(blockedUserDocRef, {
+          blockCount: newBlockCount,
+          updatedAt: serverTimestamp(),
+        });
+        console.log(`[blockUser] ✓ Block count incremented for ${blockedUserId} (now ${newBlockCount})`);
+        
+        // Step 4: Check threshold and send notification if needed
+        const BLOCK_THRESHOLD = 5;
+        const SEVERE_THRESHOLD = 10;
+        
+        if (newBlockCount === BLOCK_THRESHOLD) {
+          // First warning at 5 blocks
+          await createWarningNotification(blockedUserId, 'block', newBlockCount, 'warning');
+          console.log(`[blockUser] ✓ Warning notification sent (${newBlockCount} blocks)`);
+        } else if (newBlockCount === SEVERE_THRESHOLD) {
+          // Severe warning at 10 blocks
+          await createWarningNotification(blockedUserId, 'block', newBlockCount, 'severe');
+          console.log(`[blockUser] ✓ Severe warning notification sent (${newBlockCount} blocks)`);
+        } else if (newBlockCount > SEVERE_THRESHOLD && newBlockCount % 5 === 0) {
+          // Additional warnings every 5 blocks after 10
+          await createWarningNotification(blockedUserId, 'block', newBlockCount, 'critical');
+          console.log(`[blockUser] ✓ Critical warning notification sent (${newBlockCount} blocks)`);
+        }
+      }
+    } catch (error) {
+      console.error('[blockUser] ✗ Failed to update block count:', error);
+      // Don't throw - the block itself succeeded
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    throw error;
+  }
+};
+
+// Unblock a user by removing from blockedUsers subcollection
+export const unblockUser = async (userId, blockedUserId) => {
+  try {
+    const blockedUserRef = doc(collection(db, 'users', userId, 'blockedUsers'), blockedUserId);
+    await deleteDoc(blockedUserRef);
+    console.log(`[unblockUser] User ${blockedUserId} unblocked by ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('Error unblocking user:', error);
+    throw error;
+  }
+};
+
+// Get list of blocked user IDs for a user
+export const getBlockedUsers = async (userId) => {
+  try {
+    const blockedUsersCol = collection(db, 'users', userId, 'blockedUsers');
+    const snapshot = await getDocs(blockedUsersCol);
+    const blockedUserIds = snapshot.docs.map(doc => doc.data().uid);
+    console.log(`[getBlockedUsers] User ${userId} has blocked ${blockedUserIds.length} users`);
+    return blockedUserIds;
+  } catch (error) {
+    console.error('Error fetching blocked users:', error);
+    return [];
+  }
+};
+
+// Check if a specific user is blocked
+export const isUserBlocked = async (userId, targetUserId) => {
+  try {
+    const blockedUserRef = doc(collection(db, 'users', userId, 'blockedUsers'), targetUserId);
+    const docSnap = await getDoc(blockedUserRef);
+    return docSnap.exists();
+  } catch (error) {
+    console.error('Error checking if user is blocked:', error);
+    return false;
+  }
+};
+
+// Report a user - stores report in top-level 'reports' collection
+export const reportUser = async (reporterId, reportedUserId, category, reason = '') => {
+  try {
+    console.log(`[reportUser] Starting report: ${reporterId} reporting ${reportedUserId} for ${category}`);
+    
+    // Step 1: Create the report document
+    const reportsCol = collection(db, 'reports');
+    const reportData = {
+      reporterId,
+      reportedUserId,
+      category,
+      reason,
+      timestamp: serverTimestamp(),
+      status: 'pending', // pending, reviewed, resolved
+    };
+    
+    let reportDoc;
+    try {
+      reportDoc = await addDoc(reportsCol, reportData);
+      console.log(`[reportUser] ✓ Report document created: ${reportDoc.id}`);
+    } catch (error) {
+      console.error('[reportUser] ✗ Failed to create report document:', error);
+      throw new Error(`Failed to create report: ${error.message}`);
+    }
+    
+    // Step 2: Increment report count for the reported user
+    try {
+      const reportedUserRef = doc(db, 'users', reportedUserId);
+      const reportedUserDoc = await getDoc(reportedUserRef);
+      
+      if (!reportedUserDoc.exists()) {
+        console.warn(`[reportUser] User ${reportedUserId} document doesn't exist, skipping count update`);
+      } else {
+        const currentReportCount = reportedUserDoc.data()?.reportCount || 0;
+        const newReportCount = currentReportCount + 1;
+        
+        await updateDoc(reportedUserRef, {
+          reportCount: newReportCount,
+          updatedAt: serverTimestamp(),
+        });
+        console.log(`[reportUser] ✓ Report count incremented for user ${reportedUserId} (now ${newReportCount})`);
+        
+        // Step 3: Check threshold and send notification if needed
+        const REPORT_THRESHOLD = 3;
+        const SEVERE_THRESHOLD = 10;
+        const CRITICAL_THRESHOLD = 20;
+        
+        if (newReportCount === REPORT_THRESHOLD) {
+          // First warning at 3 reports
+          await createWarningNotification(reportedUserId, 'report', newReportCount, 'warning');
+          console.log(`[reportUser] ✓ Warning notification sent (${newReportCount} reports)`);
+        } else if (newReportCount === SEVERE_THRESHOLD) {
+          // Severe warning at 10 reports
+          await createWarningNotification(reportedUserId, 'report', newReportCount, 'severe');
+          console.log(`[reportUser] ✓ Severe warning notification sent (${newReportCount} reports)`);
+        } else if (newReportCount >= CRITICAL_THRESHOLD && newReportCount % 5 === 0) {
+          // Critical warnings every 5 reports after 20
+          await createWarningNotification(reportedUserId, 'report', newReportCount, 'critical');
+          console.log(`[reportUser] ✓ Critical warning notification sent (${newReportCount} reports)`);
+        } else {
+          console.log(`[reportUser] No notification sent (count: ${newReportCount}, thresholds: ${REPORT_THRESHOLD}, ${SEVERE_THRESHOLD}, ${CRITICAL_THRESHOLD})`);
+        }
+      }
+    } catch (error) {
+      console.error('[reportUser] ✗ Failed to update report count:', error);
+      // Don't throw - report creation succeeded
+      console.warn('[reportUser] Continuing despite count update failure');
+    }
+    
+    console.log(`[reportUser] ✓ Report submission completed successfully`);
+    return true;
+  } catch (error) {
+    console.error('[reportUser] ✗ Report submission failed:', error);
+    throw error;
+  }
+};
 
 
 
 
+// Get unread notifications count for a user
+export const getUnreadNotificationsCount = async (userId) => {
+  try {
+    const notificationsCol = collection(db, 'users', userId, 'notifications');
+    const q = query(notificationsCol, where('read', '==', false));
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    console.error('Error getting unread notifications count:', error);
+    return 0;
+  }
+};
+
+// Get all notifications for a user
+export const getUserNotifications = async (userId) => {
+  try {
+    const notificationsCol = collection(db, 'users', userId, 'notifications');
+    const q = query(notificationsCol, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error getting user notifications:', error);
+    return [];
+  }
+};
+
+// Mark notification as read
+export const markNotificationAsRead = async (userId, notificationId) => {
+  try {
+    const notificationRef = doc(db, 'users', userId, 'notifications', notificationId);
+    await updateDoc(notificationRef, {
+      read: true,
+      readAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error marking notification as read:', error);
+    throw error;
+  }
+};
+
+// Subscribe to unread notifications count (real-time)
+export const subscribeToUnreadNotifications = (userId, callback) => {
+  try {
+    const notificationsCol = collection(db, 'users', userId, 'notifications');
+    const q = query(notificationsCol, where('read', '==', false));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      callback(snapshot.size);
+    }, (error) => {
+      console.error('Error subscribing to unread notifications:', error);
+      callback(0);
+    });
+    
+    return unsubscribe;
+  } catch (error) {
+    console.error('Error setting up notifications subscription:', error);
+    return () => {};
+  }
+};

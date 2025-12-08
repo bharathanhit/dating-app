@@ -21,6 +21,17 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow write: if request.auth != null && request.auth.uid == userId;
       }
+      
+      // Blocked users subcollection
+      match /blockedUsers/{blockedUserId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null;
+      }
     }
 
     // 2. Conversations
@@ -42,6 +53,22 @@ service cloud.firestore {
         allow create: if request.auth != null && 
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
       }
+    }
+    
+    // 3. Reports collection
+    match /reports/{reportId} {
+      // Users can create reports
+      allow create: if request.auth != null;
+      // Only admins can read/update reports (for now, we'll allow read for testing)
+      allow read: if request.auth != null;
+    }
+    
+    // 4. Blocks collection
+    match /blocks/{blockId} {
+      // Users can create block records
+      allow create: if request.auth != null;
+      // Allow read for admin review
+      allow read: if request.auth != null;
     }
   }
 }

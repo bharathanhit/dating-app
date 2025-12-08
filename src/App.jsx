@@ -21,6 +21,8 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import RefundPolicyPage from './pages/RefundPolicyPage.jsx';
 import TermsAndConditionsPage from './pages/TermsAndConditionsPage.jsx';
 import LikeNotification from './components/LikeNotification.jsx';
+import { useSetOnlineStatus } from './hooks/useOnlineStatus.js';
+import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
 
 const theme = createTheme({
@@ -38,91 +40,104 @@ const App = () => {
   return (
     <ThemeProvider theme={theme}>
       <AuthProvider>
-        <Router>
-          <LikeNotification />
-          <div className="app">
-            <Navbar />
-            <main className="main-content">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignUpPage />} />
-                <Route
-                  path="/onboarding"
-                  element={
-                    <ProtectedRoute>
-                      <OnboardingPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/messages"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <MessagesPageV2 />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
-                  path="/messagesv2"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <MessagesPageV2 />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
-                  path="/likes"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <LikesPage />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
-                  path="/who-liked-me"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <WhoLikedMePage />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
-                  path="/notifications"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <NotificationsPage />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route
-                  path="/coins"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <CoinsPage />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route path="/profile/:uid" element={<PublicProfilePage />} />
-                <Route
-                  path="/profile"
-                  element={
-                    <ProtectedOnboardingRoute>
-                      <ProfilePage />
-                    </ProtectedOnboardingRoute>
-                  }
-                />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/privacy" element={<PrivacyPolicyPage />} />
-                <Route path="/refund-policy" element={<RefundPolicyPage />} />
-                <Route path="/terms" element={<TermsAndConditionsPage />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </Router>
+        <AppContent />
       </AuthProvider>
     </ThemeProvider>
+  );
+};
+
+const AppContent = () => {
+  const { user } = useAuth();
+
+  // Set user online status when authenticated
+  useSetOnlineStatus(user?.uid);
+
+  return (
+    <Router>
+      <LikeNotification />
+      <div className="app">
+        <Navbar />
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignUpPage />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <ProtectedOnboardingRoute>
+                    <OnboardingPage />
+                  </ProtectedOnboardingRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messages"
+              element={
+                <ProtectedRoute>
+                  <MessagesPageV2 />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/messagesv2"
+              element={
+                <ProtectedOnboardingRoute>
+                  <MessagesPageV2 />
+                </ProtectedOnboardingRoute>
+              }
+            />
+            <Route
+              path="/likes"
+              element={
+                <ProtectedRoute>
+                  <LikesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/who-liked-me"
+              element={
+                <ProtectedRoute>
+                  <WhoLikedMePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/coins"
+              element={
+                <ProtectedRoute>
+                  <CoinsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/profile/:uid" element={<PublicProfilePage />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/refund-policy" element={<RefundPolicyPage />} />
+            <Route path="/terms" element={<TermsAndConditionsPage />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
   );
 };
 

@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { updateUserProfile, uploadProfileImage } from '../services/userService';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import SEOHead from '../components/SEOHead.jsx';
+import ImageCropper from '../components/ImageCropper';
 
 // Helper: convert file to data URL
 const fileToDataUrl = (file) => {
@@ -92,6 +93,11 @@ const ProfilePage = () => {
   // Items: { type: 'url' | 'file', content: string | File, id: string }
   const [galleryItems, setGalleryItems] = useState([]);
 
+  // Cropper state
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [imageToCrop, setImageToCrop] = useState(null);
+  const [tempFile, setTempFile] = useState(null); // To store original file if needed, or just flow it through
+
   const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -125,19 +131,63 @@ const ProfilePage = () => {
     setError('');
     setUploadProgress(0);
     setGalleryItems([]);
+    setCropModalOpen(false);
+    setImageToCrop(null);
   };
 
   const handleAddPhoto = (e) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const newItems = Array.from(files).map((file, i) => ({
-        type: 'file',
-        content: file,
-        preview: URL.createObjectURL(file), // for display
-        id: `new-${Date.now()}-${i}`
-      }));
-      setGalleryItems(prev => [...prev, ...newItems]);
+      // If single file, open cropper
+      if (files.length === 1) {
+        const file = files[0];
+        setTempFile(file);
+        setImageToCrop(URL.createObjectURL(file));
+        setCropModalOpen(true);
+        // Reset input so same file can be selected again if cancelled
+        e.target.value = null;
+      } else {
+        // Multiple files - skip cropper (bulk upload)
+        const newItems = Array.from(files).map((file, i) => ({
+          type: 'file',
+          content: file,
+          preview: URL.createObjectURL(file), // for display
+          id: `new-${Date.now()}-${i}`
+        }));
+        setGalleryItems(prev => [...prev, ...newItems]);
+        e.target.value = null;
+      }
     }
+  };
+
+  const handleCropComplete = (croppedBlob) => {
+    if (!croppedBlob) {
+      setCropModalOpen(false);
+      return;
+    }
+
+    // Convert blob to file
+    const file = new File([croppedBlob], tempFile ? tempFile.name : 'cropped-image.jpg', {
+      type: 'image/jpeg',
+    });
+
+    const newItem = {
+      type: 'file',
+      content: file,
+      preview: URL.createObjectURL(file),
+      id: `new-${Date.now()}-cropped`
+    };
+
+    setGalleryItems(prev => [...prev, newItem]);
+    setCropModalOpen(false);
+    setImageToCrop(null);
+    setTempFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropModalOpen(false);
+    setImageToCrop(null);
+    setTempFile(null);
   };
 
   const handleRemovePhoto = (id) => {
@@ -294,7 +344,8 @@ const ProfilePage = () => {
                                   bgcolor: 'rgba(0,0,0,0.6)', color: 'white',
                                   width: 20, height: 20, borderRadius: '50%',
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  cursor: 'pointer', fontSize: '1rem', lineHeight: 1
+                                  cursor: 'pointer',
+                                  fontSize: '1rem', lineHeight: 1
                                 }}
                               >
                                 &times;
@@ -462,6 +513,18 @@ const ProfilePage = () => {
             </Grid>
           </CardContent>
         </Card>
+
+        {/* Image Cropper Dialog */}
+        {cropModalOpen && imageToCrop && (
+          <ImageCropper
+            open={cropModalOpen}
+            image={imageToCrop}
+            onComplete={handleCropComplete}
+            onCancel={handleCropCancel}
+            aspectRatio={1}
+          />
+        )}
+
       </Container>
     </>
   );

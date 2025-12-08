@@ -68,35 +68,61 @@ export const useMultipleOnlineStatuses = (userIds) => {
 
 /**
  * Custom hook to set current user's online status
+ * Uses Firebase's built-in presence system for reliability
  * @param {string} userId - Current user's ID
  */
 export const useSetOnlineStatus = (userId) => {
   useEffect(() => {
     if (!userId) return;
 
-    const myStatusRef = ref(realtimeDb, `status/${userId}`);
+    let isActive = true;
 
-    // Set online
-    import('firebase/database').then(({ set, serverTimestamp, update }) => {
-      set(myStatusRef, {
-        online: true,
-        lastSeen: serverTimestamp(),
+    // Import Firebase Database functions
+    import('firebase/database').then(async ({ set, onValue, onDisconnect, serverTimestamp, ref: dbRef }) => {
+      if (!isActive) return;
+
+      const myStatusRef = dbRef(realtimeDb, `status/${userId}`);
+      const connectedRef = dbRef(realtimeDb, '.info/connected');
+
+      // Monitor connection state
+      const unsubscribe = onValue(connectedRef, async (snapshot) => {
+        if (!isActive) return;
+        
+        if (snapshot.val() === true) {
+          // We're connected (or reconnected)
+          console.log(`[useSetOnlineStatus] User ${userId} connected`);
+
+          // Set up onDisconnect handler first
+          const disconnectRef = onDisconnect(myStatusRef);
+          await disconnectRef.set({
+            online: false,
+            lastSeen: serverTimestamp(),
+          });
+
+          // Then set ourselves as online
+          await set(myStatusRef, {
+            online: true,
+            lastSeen: serverTimestamp(),
+          });
+        }
       });
 
-      // Handle offline on tab close
-      const handleOffline = () => {
-        update(myStatusRef, {
+      // Cleanup function
+      return () => {
+        isActive = false;
+        unsubscribe();
+        
+        // Set offline when component unmounts
+        set(myStatusRef, {
           online: false,
           lastSeen: serverTimestamp(),
-        });
-      };
-
-      window.addEventListener('beforeunload', handleOffline);
-
-      return () => {
-        handleOffline();
-        window.removeEventListener('beforeunload', handleOffline);
+        }).catch(err => console.error('Error setting offline status:', err));
       };
     });
+
+    // Cleanup
+    return () => {
+      isActive = false;
+    };
   }, [userId]);
 };

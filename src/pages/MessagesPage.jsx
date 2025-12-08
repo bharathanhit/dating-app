@@ -1,4 +1,4 @@
- // MessagesPage.jsx
+// MessagesPage.jsx
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import {
@@ -155,51 +155,50 @@ const MessagesPage = () => {
 
   // Listen for messages for active conversation (realtime)
   useEffect(() => {
+    // Clear messages immediately when conversation changes
     if (!activeConv?.id) {
       setMessages([]);
       return;
     }
 
+    // Reset messages before setting up new listener
+    setMessages([]);
+
     const convId = activeConv.id;
     let unsubMessages;
     try {
-      unsubMessages = listenForMessagesRealtime(convId, (msg) => {
-        if (!msg) return;
-        // support createdAt or timestamp
-        const normalizedMsg = {
-          ...msg,
-          createdAt: msg.createdAt ?? msg.timestamp ?? Date.now(),
-        };
+      console.log('[MessagesPage] Setting up message listener for:', convId);
+      unsubMessages = listenForMessagesRealtime(convId, (messagesArray) => {
+        console.log('[MessagesPage] Received messages update:', messagesArray.length);
 
-        setMessages((prev) => {
-          const merged = [...prev, normalizedMsg];
-          merged.sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)));
-          return merged;
+        // Set messages directly from the listener (already sorted by service)
+        setMessages(messagesArray);
+
+        // Prefetch sender profiles if missing
+        messagesArray.forEach((msg) => {
+          if (msg.senderId && !profileMap[msg.senderId]) {
+            getUserProfile(msg.senderId)
+              .then((p) => setProfileMap((m) => ({ ...m, [msg.senderId]: p || { uid: msg.senderId } })))
+              .catch(() => { });
+          }
         });
-
-        // prefetch sender profile if missing
-        if (normalizedMsg.senderId && !profileMap[normalizedMsg.senderId]) {
-          getUserProfile(normalizedMsg.senderId)
-            .then((p) => setProfileMap((m) => ({ ...m, [normalizedMsg.senderId]: p || { uid: normalizedMsg.senderId } })))
-            .catch(() => { });
-        }
       });
     } catch (err) {
-      console.error("listenForMessagesRealtime threw:", err);
+      console.error('[MessagesPage] listenForMessagesRealtime threw:', err);
     }
 
     return () => {
-      if (typeof unsubMessages === "function") unsubMessages();
+      console.log('[MessagesPage] Cleaning up message listener for:', convId);
+      if (typeof unsubMessages === 'function') unsubMessages();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConv, profileMap]);
+  }, [activeConv?.id]); // Only depend on activeConv.id to prevent unnecessary re-renders
 
   // Fetch online status for active conversation's other participant
   useEffect(() => {
     if (!activeConv) return;
     const other = (activeConv.participants || []).find((id) => id !== user?.uid);
     if (!other) return;
-    const statusRef = ref(realtimeDb, status/${other});
+    const statusRef = ref(realtimeDb, `status/${other}`);
     const off = onValue(statusRef, (snap) => {
       setStatus(snap.val());
     });
@@ -301,7 +300,7 @@ const MessagesPage = () => {
                 {otherProfile?.name || otherUid || "Conversation"}
               </Typography>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                {status?.online ? "Online" : (status?.lastSeen ? Last seen ${new Date(status.lastSeen).toLocaleString()} : "")}
+                {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
               </Typography>
             </Box>
           </Box>
@@ -356,7 +355,7 @@ const MessagesPage = () => {
                 <Box>
                   <Typography sx={{ fontWeight: 600, color: "black" }}>{otherProfile?.name || otherUid || "Conversation"}</Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                    {status?.online ? "Online" : (status?.lastSeen ? Last seen ${new Date(status.lastSeen).toLocaleString()} : "")}
+                    {status?.online ? "Online" : (status?.lastSeen ? `Last seen ${new Date(status.lastSeen).toLocaleString()}` : "")}
                   </Typography>
                 </Box>
               </Box>
@@ -430,7 +429,7 @@ const MessagesPage = () => {
             <Box sx={{ px: 2, py: 1, borderTop: "1px solid rgba(0,0,0,0.04)", display: "flex", gap: 1, alignItems: "center", bgcolor: "#fff" }}>
               <TextField
                 fullWidth
-                placeholder={activeConv ? Message ${otherProfile?.name || ""} : "Select a conversation"}
+                placeholder={activeConv ? `Message ${otherProfile?.name || ""}` : "Select a conversation"}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}

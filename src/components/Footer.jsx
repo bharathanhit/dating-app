@@ -1,5 +1,5 @@
-import { Box, IconButton, Typography } from "@mui/material";
-import { Home, Favorite, Person, ChatBubble, Chat } from "@mui/icons-material";
+import { Box, IconButton, Typography, CircularProgress } from "@mui/material";
+import { Home, Favorite, Person, ChatBubble, Chat, QuestionAnswer } from "@mui/icons-material";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getRandomUser } from "../services/userService";
@@ -20,7 +20,11 @@ const Footer = () => {
 
     setIsLoadingRandom(true);
     try {
-      const randomUser = await getRandomUser(user.uid);
+      // Artificial delay for "crazy loading" effect (3 seconds) + fetch user
+      const [randomUser] = await Promise.all([
+        getRandomUser(user.uid),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ]);
 
       if (randomUser) {
         // Navigate to messages with the random user's UID
@@ -102,6 +106,19 @@ const Footer = () => {
         filter: 'drop-shadow(0px -4px 15px rgba(0,0,0,0.25))',
       }}
     >
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotateY(0deg); }
+            100% { transform: rotateY(360deg); }
+          }
+          @keyframes ripple {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.6); opacity: 0; }
+          }
+        `}
+      </style>
+
       {/* Responsive Background Layer */}
       <Box
         sx={{
@@ -162,7 +179,7 @@ const Footer = () => {
               textAnchor="middle"
             >
               <textPath href="#curvePath" startOffset="50%" side="left">
-                Random Chat
+                {isLoadingRandom ? "Searching..." : "Random Chat"}
               </textPath>
             </text>
           </svg>
@@ -228,7 +245,7 @@ const Footer = () => {
           width: "70px",
           height: "70px",
           background: isLoadingRandom
-            ? "linear-gradient(145deg, #999, #666)"
+            ? "linear-gradient(135deg, #FF416C, #FF4B2B)" // Intense pulse color
             : "linear-gradient(145deg, #7F00FF, #E100FF)",
           borderRadius: "50%",
           display: "flex",
@@ -238,34 +255,58 @@ const Footer = () => {
           cursor: isLoadingRandom ? "wait" : "pointer",
           pointerEvents: "auto",
           zIndex: 1001,
-          transition: "0.2s ease-in-out",
+          transition: "0.3s ease-in-out",
+          // Ripple effect
+          "&::before": isLoadingRandom ? {
+            content: '""',
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            borderRadius: "50%",
+            border: "2px solid rgba(255, 255, 255, 0.5)",
+            animation: "ripple 1.5s infinite ease-out",
+          } : {},
           "&:hover": {
             transform: isLoadingRandom ? "translateX(-50%)" : "translateX(-50%) scale(1.05)",
           },
         }}
         onClick={handleRandomChat}
       >
-        <ChatBubble sx={{ color: "white", fontSize: "27px", position: "relative" }} />
-        <Typography
-          sx={{
-            position: "absolute",
-            bottom: "18px",
-            right: "18px",
-            color: "white",
-            fontWeight: "bold",
-            fontSize: "22px",
-            backgroundColor: "#7F00FF",
-            borderRadius: "50%",
-            width: "22px",
-            height: "22px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 0 5px rgba(255,255,255,0.6)",
-          }}
-        >
-          +
-        </Typography>
+        {isLoadingRandom ? (
+          <QuestionAnswer
+            sx={{
+              color: "white",
+              fontSize: "32px",
+              animation: "spin 1.2s linear infinite"
+            }}
+          />
+        ) : (
+          <>
+            <ChatBubble sx={{ color: "white", fontSize: "27px", position: "relative" }} />
+            <Typography
+              sx={{
+                position: "absolute",
+                bottom: "18px",
+                right: "18px",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: "22px",
+                backgroundColor: "#7F00FF",
+                borderRadius: "50%",
+                width: "22px",
+                height: "22px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 0 5px rgba(255,255,255,0.6)",
+              }}
+            >
+              +
+            </Typography>
+          </>
+        )}
       </Box>
     </Box>
   );
