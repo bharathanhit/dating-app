@@ -169,7 +169,7 @@ export const checkDailyLoginReward = async (userId) => {
     }
     
     // Award daily login bonus
-    // const DAILY_LOGIN_REWARD = 20;
+    // const DAILY_LOGIN_REWARD = 25;
     // await addCoins(userId, DAILY_LOGIN_REWARD, 'daily_login');
     
     // Update last login date (still useful for tracking activity)

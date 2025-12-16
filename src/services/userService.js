@@ -1,7 +1,7 @@
 import { db } from '../config/firebase.js';
 import { realtimeDb } from '../config/firebase.js';
 import { ref, get } from 'firebase/database';
-import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, serverTimestamp, arrayUnion, deleteDoc, onSnapshot, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, deleteDoc, onSnapshot, addDoc } from 'firebase/firestore';
 
 
 // Create or update user profile
@@ -29,10 +29,10 @@ export const createUserProfile = async (userId, profileData) => {
       userDocRef,
       {
         ...dataToSave,
-        coins: 20, // Initialize with 20 coins for new users
+        coins: 25, // Initialize with 20 coins for new users
         lastLoginDate: null, // Track last login for daily rewards
         // Moderation tracking
-        isBlocked: false, // Whether user is currently blocked/banned
+        isBlocked: false, // Whether user is currently blocked/bannedz
         blockReason: null, // Reason for block if blocked
         blockCount: 0, // Number of times user has been blocked
         reportCount: 0, // Number of times user has been reported
@@ -97,6 +97,91 @@ export const getAllUserProfiles = async (excludeUid = null) => {
     return profiles;
   } catch (error) {
     console.error('Error fetching all user profiles:', error);
+    throw error;
+  }
+};
+
+// Get user profiles with pagination (for lazy loading)
+// Get user profiles with pagination (for lazy loading)
+export const getUserProfilesPaginated = async (excludeUid = null, pageSize = 10, lastDoc = null) => {
+  try {
+    const usersCol = collection(db, 'users');
+    const start = performance.now();
+    
+    // Build query with pagination - MUST use orderBy for consistent cursor pagination
+    let q;
+    if (lastDoc) {
+      // Fetch next page starting after the last document
+      q = query(usersCol, orderBy('createdAt', 'desc'), limit(pageSize + 1), startAfter(lastDoc));
+    } else {
+      // Fetch first page
+      q = query(usersCol, orderBy('createdAt', 'desc'), limit(pageSize + 1));
+    }
+    
+    const snapshot = await getDocs(q);
+    const end = performance.now();
+    console.log(`[getUserProfilesPaginated] Firestore query took ${(end - start).toFixed(2)}ms`);
+
+    const profiles = [];
+    const docs = [];
+    
+    snapshot.forEach((docSnap) => {
+      if (excludeUid && docSnap.id === excludeUid) return;
+      profiles.push({ uid: docSnap.id, ...docSnap.data() });
+      docs.push(docSnap);
+    });
+    
+    // Check if there are more profiles to load
+    const hasMore = snapshot.docs.length > pageSize;
+    
+    // Remove the extra profile if we fetched one more than pageSize
+    // Note: If we filtered out 'excludeUid' (the current user), we might have fewer profiles than docs
+    // But for pagination cursor purposes, we care about the raw docs
+    
+    let returnProfiles = [...profiles];
+    let newLastDoc = null;
+
+    if (hasMore) {
+       // Using the raw snapshot docs for cursor logic
+       newLastDoc = snapshot.docs[pageSize - 1];
+       // We should return at most pageSize profiles
+       // If the excluded user was in the first 'pageSize' docs, we might have pageSize-1 profiles
+       // If the excluded user was the (pageSize+1)th doc, we have pageSize profiles
+       
+       // Simplest approach: just slice the array of profiles we successfully extracted
+       // But 'hasMore' logic depends on the raw query limit
+    } else if (snapshot.docs.length > 0) {
+      newLastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+
+    // Ensure we don't return more than requested size
+    if (returnProfiles.length > pageSize) {
+      returnProfiles = returnProfiles.slice(0, pageSize);
+    }
+
+    // Determine the last document for the next cursor
+    // CRITICAL FIX: Use the doc snapshot of the last *returned* profile
+    // This handles cases where items were filtered out (e.g. excludeUid)
+    if (returnProfiles.length > 0) {
+      // docs[] tracks profiles[] 1:1 before slicing
+      // returnProfiles is a slice of profiles
+      // So docs[returnProfiles.length - 1] is the snapshot for the last item in returnProfiles
+      newLastDoc = docs[returnProfiles.length - 1];
+    } else if (snapshot.docs.length > 0) {
+      // If we filtered out all items in this batch (e.g. only found current user),
+      // we must still advance the cursor to the end of this batch so we don't get stuck
+      newLastDoc = snapshot.docs[snapshot.docs.length - 1];
+    }
+
+    console.log(`[getUserProfilesPaginated] Fetched ${returnProfiles.length} profiles (pageSize: ${pageSize}, hasMore: ${hasMore}, excludeUid: ${excludeUid || 'none'})`);
+
+    return {
+      profiles: returnProfiles,
+      lastDoc: newLastDoc,
+      hasMore
+    };
+  } catch (error) {
+    console.error('Error fetching paginated user profiles:', error);
     throw error;
   }
 };

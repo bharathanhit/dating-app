@@ -143,6 +143,10 @@ export const AuthProvider = ({ children }) => {
     try {
       setError(null);
       const provider = new GoogleAuthProvider();
+      // Force account selection to allow users to switch accounts
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       provider.addScope('profile');
       provider.addScope('email');
       const result = await signInWithPopup(auth, provider);

@@ -20,7 +20,9 @@ import ContactPage from './pages/ContactPage.jsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import RefundPolicyPage from './pages/RefundPolicyPage.jsx';
 import TermsAndConditionsPage from './pages/TermsAndConditionsPage.jsx';
+import AdminUserList from './pages/AdminUserList.jsx';
 import LikeNotification from './components/LikeNotification.jsx';
+import InstallPrompt from './components/InstallPrompt.jsx';
 import { useSetOnlineStatus } from './hooks/useOnlineStatus.js';
 import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
@@ -55,10 +57,19 @@ const AppContent = () => {
   return (
     <Router>
       <LikeNotification />
+      <InstallPrompt />
       <div className="app">
         <Navbar />
         <main className="main-content">
           <Routes>
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminUserList />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
@@ -66,18 +77,16 @@ const AppContent = () => {
               path="/onboarding"
               element={
                 <ProtectedRoute>
-                  <ProtectedOnboardingRoute>
-                    <OnboardingPage />
-                  </ProtectedOnboardingRoute>
+                  <OnboardingPage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/messages"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <MessagesPageV2 />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route
@@ -91,42 +100,42 @@ const AppContent = () => {
             <Route
               path="/likes"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <LikesPage />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route
               path="/who-liked-me"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <WhoLikedMePage />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route
               path="/notifications"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <NotificationsPage />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route
               path="/coins"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <CoinsPage />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route path="/profile/:uid" element={<PublicProfilePage />} />
             <Route
               path="/profile"
               element={
-                <ProtectedRoute>
+                <ProtectedOnboardingRoute>
                   <ProfilePage />
-                </ProtectedRoute>
+                </ProtectedOnboardingRoute>
               }
             />
             <Route path="/contact" element={<ContactPage />} />

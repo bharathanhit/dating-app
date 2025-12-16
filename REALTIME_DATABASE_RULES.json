@@ -13,6 +13,10 @@
                 "lastMessage": {
                     ".read": "auth != null",
                     ".write": "auth != null"
+                },
+                "settings": {
+                    ".read": "auth != null",
+                    ".write": "auth != null"
                 }
             }
         },

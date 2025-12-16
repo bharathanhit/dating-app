@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Container, Grid, Box, Typography, CircularProgress, useMediaQuery } from '@mui/material';
+import { Container, Grid, Box, Typography, CircularProgress, useMediaQuery, Skeleton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ProfileCard from '../components/ProfileCard.jsx';
 import SEOHead from '../components/SEOHead.jsx';
-import { getAllUserProfiles } from '../services/userService';
+import { getUserProfilesPaginated } from '../services/userService';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll.jsx';
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -15,6 +16,11 @@ const HomePage = () => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Pagination state
+  const [lastDoc, setLastDoc] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Responsive: enable swipe only on mobile
   const theme = useTheme();
@@ -37,8 +43,8 @@ const HomePage = () => {
       setLoading(true);
       setError('');
       try {
-        console.log(`[HomePage] Fetching profiles, current user uid: ${user?.uid || 'not logged in'}`);
-        const data = await getAllUserProfiles(user?.uid);
+        console.log(`[HomePage] Fetching initial profiles, current user uid: ${user?.uid || 'not logged in'}`);
+        const { profiles: data, lastDoc: newLastDoc, hasMore: moreAvailable } = await getUserProfilesPaginated(user?.uid, 10);
         if (!mounted) return;
         console.log(`[HomePage] Received ${data.length} profiles from service`);
         console.log(`[HomePage] Profile UIDs: ${data.map(p => p.uid).join(', ')}`);
@@ -74,6 +80,8 @@ const HomePage = () => {
         });
         console.log(`[HomePage] Mapped ${mapped.length} profiles for display`);
         setProfiles(mapped);
+        setLastDoc(newLastDoc);
+        setHasMore(moreAvailable);
       } catch (err) {
         console.error('Failed to load profiles', err);
         setError(err.message || 'Failed to load profiles');
@@ -87,6 +95,59 @@ const HomePage = () => {
       mounted = false;
     };
   }, [user]);
+
+  // Load more profiles when scrolling
+  const loadMoreProfiles = useCallback(async () => {
+    if (loadingMore || !hasMore || !lastDoc) return;
+
+    setLoadingMore(true);
+    try {
+      console.log(`[HomePage] Loading more profiles, current count: ${profiles.length}`);
+      const { profiles: newData, lastDoc: newLastDoc, hasMore: moreAvailable } = await getUserProfilesPaginated(user?.uid, 10, lastDoc);
+
+      console.log(`[HomePage] Received ${newData.length} more profiles`);
+
+      // Map new profiles
+      const mapped = newData.map((p) => {
+        let birth = null;
+        if (p.birthDate) {
+          if (p.birthDate.toDate) birth = p.birthDate.toDate();
+          else birth = new Date(p.birthDate);
+        }
+        const age = birth ? new Date().getFullYear() - birth.getFullYear() : null;
+
+        let district = null;
+        if (p.district) district = p.district;
+        else if (p.address && p.address.district) district = p.address.district;
+        else if (p.location && typeof p.location === 'string') {
+          const parts = p.location.split(',').map((s) => s.trim()).filter(Boolean);
+          if (parts.length >= 2 && /tamil nadu/i.test(parts[parts.length - 1])) {
+            district = parts[0];
+          }
+        }
+
+        return {
+          ...p,
+          age,
+          district: district || p.district || '',
+          bio: p.bio || '',
+          image: p.image || p.photoURL || 'https://via.placeholder.com/800x600',
+        };
+      });
+
+      setProfiles(prev => [...prev, ...mapped]);
+      setLastDoc(newLastDoc);
+      setHasMore(moreAvailable);
+      console.log(`[HomePage] Total profiles now: ${profiles.length + mapped.length}, hasMore: ${moreAvailable}`);
+    } catch (err) {
+      console.error('Failed to load more profiles', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, lastDoc, profiles.length, user?.uid]);
+
+  // Infinite scroll hook
+  const sentinelRef = useInfiniteScroll(loadMoreProfiles, hasMore, loadingMore);
 
   if (loading) {
     return (
@@ -249,15 +310,80 @@ const HomePage = () => {
                 </motion.div>
               ))}
             </Box>
+
+            {/* Loading skeleton for pagination */}
+            {loadingMore && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+                {[1, 2].map((i) => (
+                  <Skeleton
+                    key={i}
+                    variant="rectangular"
+                    height={400}
+                    sx={{ borderRadius: '24px' }}
+                  />
+                ))}
+              </Box>
+            )}
+
+            {/* Sentinel element for infinite scroll */}
+            {hasMore && !loadingMore && (
+              <div ref={sentinelRef} style={{ height: '20px', margin: '20px 0' }} />
+            )}
+
+            {/* End of profiles message */}
+            {!hasMore && profiles.length > 0 && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body1" color="text.secondary">
+                  🎉 You've seen all profiles!
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Check back later for new matches
+                </Typography>
+              </Box>
+            )}
           </Box>
         ) : (
-          <Grid container spacing={2} justifyContent="center">
-            {profiles.map((profile) => (
-              <Grid item xs={12} sm={6} md={6} lg={4} key={profile.uid}>
-                <ProfileCard profile={profile} />
-              </Grid>
-            ))}
-          </Grid>
+          <>
+            <Grid container spacing={2} justifyContent="center">
+              {profiles.map((profile) => (
+                <Grid item xs={12} sm={6} md={6} lg={4} key={profile.uid}>
+                  <ProfileCard profile={profile} />
+                </Grid>
+              ))}
+
+              {/* Loading skeleton for pagination */}
+              {loadingMore && (
+                <>
+                  {[1, 2, 3].map((i) => (
+                    <Grid item xs={12} sm={6} md={6} lg={4} key={`skeleton-${i}`}>
+                      <Skeleton
+                        variant="rectangular"
+                        height={400}
+                        sx={{ borderRadius: '16px' }}
+                      />
+                    </Grid>
+                  ))}
+                </>
+              )}
+            </Grid>
+
+            {/* Sentinel element for infinite scroll */}
+            {hasMore && !loadingMore && (
+              <div ref={sentinelRef} style={{ height: '20px', margin: '20px 0' }} />
+            )}
+
+            {/* End of profiles message */}
+            {!hasMore && profiles.length > 0 && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body1" color="text.secondary">
+                  🎉 You've seen all profiles!
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Check back later for new matches
+                </Typography>
+              </Box>
+            )}
+          </>
         )}
       </Container>
     </>

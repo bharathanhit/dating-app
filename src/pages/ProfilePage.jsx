@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Container,
   Grid,
@@ -20,6 +20,7 @@ import { updateUserProfile, uploadProfileImage } from '../services/userService';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import SEOHead from '../components/SEOHead.jsx';
 import ImageCropper from '../components/ImageCropper';
+import { useNavigate } from 'react-router-dom';
 
 // Helper: convert file to data URL
 const fileToDataUrl = (file) => {
@@ -86,6 +87,7 @@ const SwipeableProfileCard = ({ profile, onLike, onPass }) => {
 
 const ProfilePage = () => {
   const { user, profile, refreshProfile } = useAuth();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: '', bio: '', interests: [], location: '' });
 
@@ -103,6 +105,13 @@ const ProfilePage = () => {
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+
+  // Redirect to onboarding if no profile exists
+  useEffect(() => {
+    if (!profile && user) {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [profile, user, navigate]);
 
   // Initialize form from profile when entering edit mode
   const startEdit = () => {
@@ -263,10 +272,13 @@ const ProfilePage = () => {
     }
   };
 
+  // Don't show "No profile found" - redirect happens in useEffect
   if (!profile) {
     return (
       <Container maxWidth="lg" sx={{ pb: { xs: 12, sm: 10 } }}>
-        <Typography variant="h6" sx={{ mt: 4 }}>No profile found.</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+          <CircularProgress />
+        </Box>
       </Container>
     );
   }

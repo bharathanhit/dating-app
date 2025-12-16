@@ -1,9 +1,10 @@
 import { useAuth } from '../context/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 
 export const ProtectedOnboardingRoute = ({ children }) => {
   const { isAuthenticated, isProfileComplete, loading } = useAuth();
+  const location = useLocation();
 
   console.log('ProtectedOnboardingRoute: Authenticated:', isAuthenticated, 'Profile Complete:', isProfileComplete, 'Loading:', loading); // Debugging log
 
@@ -24,6 +25,12 @@ export const ProtectedOnboardingRoute = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Special case: Allow access to /onboarding even without complete profile
+  // This prevents circular redirects when users are trying to complete their profile
+  if (location.pathname === '/onboarding') {
+    return children;
   }
 
   if (!isProfileComplete) {

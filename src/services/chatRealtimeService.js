@@ -238,3 +238,54 @@ export const setUserOffline = async (userId) => {
 };
 
 // Example messageObj: { senderId, text, ... }
+
+// Update audio message status (pending, accepted, denied)
+export const updateMessageAudioStatus = async (conversationId, messageId, status, userId) => {
+  if (!conversationId || !messageId || !status) return;
+
+  const msgRef = ref(realtimeDb, `conversations/${conversationId}/messages/${messageId}`);
+  
+  // Create update object
+  const updates = {
+    audioStatus: status
+  };
+
+  // If accepted/denied, record who did it and when
+  if (status === 'accepted' || status === 'denied') {
+    updates[`${status}By`] = userId;
+    updates[`${status}At`] = Date.now();
+  }
+
+  try {
+    await update(msgRef, updates);
+    console.log(`[ChatRealtime] Audio status updated to ${status} for message ${messageId}`);
+  } catch (error) {
+    console.error('[ChatRealtime] Failed to update audio status:', error);
+    throw error;
+  }
+};
+
+// Trust Logic: Set a user as trusted for audio in this conversation
+export const setAudioTrust = async (conversationId, senderId) => {
+  if (!conversationId || !senderId) return;
+  const trustRef = ref(realtimeDb, `conversations/${conversationId}/settings/audioTrusted/${senderId}`);
+  try {
+    await set(trustRef, true);
+    console.log(`[ChatRealtime] Trust set for sender ${senderId}`);
+  } catch (error) {
+    console.error('[ChatRealtime] Failed to set trust:', error);
+  }
+};
+
+// Trust Logic: Check if a user is trusted
+export const checkAudioTrust = async (conversationId, senderId) => {
+  if (!conversationId || !senderId) return false;
+  const trustRef = ref(realtimeDb, `conversations/${conversationId}/settings/audioTrusted/${senderId}`);
+  try {
+    const snapshot = await get(trustRef);
+    return snapshot.exists() && snapshot.val() === true;
+  } catch (error) {
+    console.error('[ChatRealtime] Failed to check trust:', error);
+    return false;
+  }
+};
