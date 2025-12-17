@@ -1,28 +1,40 @@
 
+import { db } from '../config/firebase.js';
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 // Admin function to block/ban a user
 export const adminBlockUser = async (userId, reason) => {
+  console.log(`[adminBlockUser] Starting block for user: ${userId} with reason: ${reason}`);
   try {
     const userRef = doc(db, 'users', userId);
+    console.log('[adminBlockUser] Fetching user doc...');
     const userDoc = await getDoc(userRef);
     
+    // Even if doc doesn't exist, we might want to create a placeholder or error out.
+    // Assuming user must exist:
     if (!userDoc.exists()) {
-      throw new Error('User not found');
+       console.error('[adminBlockUser] User not found!');
+       throw new Error('User not found');
     }
     
-    const currentBlockCount = userDoc.data()?.blockCount || 0;
+    const currentData = userDoc.data();
+    console.log('[adminBlockUser] User found:', currentData);
+    const currentBlockCount = currentData?.blockCount || 0;
     
-    await updateDoc(userRef, {
+    console.log('[adminBlockUser] Setting document with merge...');
+    // Use setDoc with merge to force fields to be written even if they don't exist
+    await setDoc(userRef, {
       isBlocked: true,
       blockReason: reason,
       blockCount: currentBlockCount + 1,
       blockedAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
     
-    console.log(`[adminBlockUser] User ${userId} blocked. Reason: ${reason}`);
+    console.log(`[adminBlockUser] User ${userId} blocked successfully. Reason: ${reason}`);
     return true;
   } catch (error) {
-    console.error('Error blocking user:', error);
+    console.error('[adminBlockUser] Error blocking user:', error);
     throw error;
   }
 };
@@ -32,12 +44,12 @@ export const adminUnblockUser = async (userId) => {
   try {
     const userRef = doc(db, 'users', userId);
     
-    await updateDoc(userRef, {
+    await setDoc(userRef, {
       isBlocked: false,
       blockReason: null,
       blockedAt: null,
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
     
     console.log(`[adminUnblockUser] User ${userId} unblocked`);
     return true;
