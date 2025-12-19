@@ -32,6 +32,7 @@ const CoinsPage = () => {
             price: '₹1',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            paymentLink: 'https://imjo.in/NbaCv6'
         },
         {
             id: 2,
@@ -43,6 +44,7 @@ const CoinsPage = () => {
             discount: '33% OFF',
             popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            paymentLink: 'https://imjo.in/p7dNcP'
         },
         {
             id: 3,
@@ -53,6 +55,7 @@ const CoinsPage = () => {
             discount: '40% OFF',
             popular: true,
             gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)',
+            paymentLink: 'https://imjo.in/EAhRc6'
         },
     ];
 
@@ -151,7 +154,7 @@ const CoinsPage = () => {
     };
 
     const handlePurchase = async (pkg) => {
-        if (!user) return; // Removed pkg.paymentLink check
+        if (!user) return;
 
         try {
             // 1. Save state to localStorage
@@ -163,28 +166,20 @@ const CoinsPage = () => {
                 timestamp: Date.now()
             }));
 
-            // 2. Call Cloud Function to create payment link
-            setLoading(true); // Show loading while generating link
-            const functions = getFunctions();
-            const createPayment = httpsCallable(functions, 'createInstamojoPayment');
-
-            const result = await createPayment({ packageId: pkg.id });
-
-            if (result.data && result.data.paymentUrl) {
-                // 3. Redirect to Instamojo
-                window.location.href = result.data.paymentUrl;
+            // 2. Direct Redirect (Testing Mode / Static Links)
+            if (pkg.paymentLink) {
+                window.location.href = pkg.paymentLink;
             } else {
-                throw new Error("No payment URL returned");
+                setSnackbar({ open: true, message: 'Payment link unavailable for this package.', severity: 'error' });
             }
 
         } catch (error) {
             console.error('Error initiating purchase:', error);
             setSnackbar({
                 open: true,
-                message: 'Failed to initiate purchase. Please try again.',
+                message: 'Failed to initiate purchase.',
                 severity: 'error'
             });
-            setLoading(false);
         }
     };
 
@@ -334,7 +329,7 @@ const CoinsPage = () => {
                                                 variant="contained"
                                                 fullWidth
                                                 onClick={() => handlePurchase(pkg)}
-                                                disabled={loading}
+                                                disabled={!pkg.paymentLink}
                                                 sx={{
                                                     mt: 2,
                                                     py: 1.5,
@@ -350,9 +345,9 @@ const CoinsPage = () => {
                                                         color: 'rgba(0, 0, 0, 0.5)',
                                                     }
                                                 }}
-                                                startIcon={loading ? <CircularProgress size={20} /> : <CheckCircle />}
+                                                startIcon={<CheckCircle />}
                                             >
-                                                {loading ? 'Processing...' : 'Buy Now'}
+                                                {pkg.paymentLink ? 'Buy Now' : 'Unavailable'}
                                             </Button>
                                         </CardContent>
                                     </Card>
