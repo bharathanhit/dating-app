@@ -11,9 +11,12 @@ admin.initializeApp();
 // Loaded from .env file
 const ADMIN_UPI_ID = process.env.UPI_ID || "abharathan61-2@okaxis";
 const INSTAMOJO_WEBHOOK_SECRET = process.env.INSTAMOJO_WEBHOOK_SECRET || "";
-const INSTAMOJO_API_KEY = process.env.INSTAMOJO_API_KEY || "";
-const INSTAMOJO_AUTH_TOKEN = process.env.INSTAMOJO_AUTH_TOKEN || "";
+
+// INSTAMOJO CREDENTIALS (UPDATED)
+const INSTAMOJO_CLIENT_ID = "t3DvU9c4jXQB8ng5ro60jmw7fqvFdLdMk104ekFv";
+const INSTAMOJO_CLIENT_SECRET = "WsmwStFWfaeb6MFmR9BsUGZY9IuMNUeC2xITVL1XqtQ0wK7JFE7yGcuBTc9F2utOAWV0cB5iSLvJtO2DjDwdvZvTBktUmP0fhdCRZzOk2GTfnhDyMlppT2Vgmr3kAoRx";
 const INSTAMOJO_API_ENDPOINT = "https://api.instamojo.com/v2";
+const INSTAMOJO_OAUTH_ENDPOINT = "https://api.instamojo.com/oauth2/token/";
 
 /**
  * Helper: Verify Instamojo Webhook Signature
@@ -384,6 +387,111 @@ exports.onPaymentApproved = functions.firestore
  * Callable Function: Verifies payment via Instamojo API and credits coins
  * Called by user after completing payment with Payment ID
  */
+/**
+ * Helper: Get Instamojo Access Token
+ * Uses Client Credentials flow
+ */
+async function getInstamojoAccessToken() {
+  try {
+    const params = new URLSearchParams();
+    params.append('grant_type', 'client_credentials');
+    params.append('client_id', INSTAMOJO_CLIENT_ID);
+    params.append('client_secret', INSTAMOJO_CLIENT_SECRET);
+
+    const response = await axios.post(INSTAMOJO_OAUTH_ENDPOINT, params);
+    
+    if (response.data && response.data.access_token) {
+      return response.data.access_token;
+    }
+    throw new Error("No access token in response");
+  } catch (error) {
+    console.error("[AUTH] Failed to get Instamojo access token:", error.response?.data || error.message);
+    throw new Error("Authentication with payment gateway failed");
+  }
+}
+
+/**
+ * Create Instamojo Payment Request
+ * Callable Function: Generates a payment link
+ */
+exports.createInstamojoPayment = functions.https.onCall(async (data, context) => {
+  // 1. Ensure user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "You must be logged in to make a purchase."
+    );
+  }
+
+  const userId = context.auth.uid;
+  const { packageId } = data;
+  const userEmail = context.auth.token.email || "user@example.com";
+  const userName = context.auth.token.name || "User";
+
+  // 2. Validate input
+  if (!packageId) {
+    throw new functions.https.HttpsError("invalid-argument", "Package ID is required.");
+  }
+
+  try {
+    // 3. Get API Access Token
+    const accessToken = await getInstamojoAccessToken();
+
+    // 4. Get package details
+    const coinPackages = {
+      1: { coins: 1, price: 1, name: "1 Coins" },
+      2: { coins: 25, price: 20, name: "25 Coins" },
+      3: { coins: 62, price: 50, name: "62 Coins" },
+    };
+
+    const pkg = coinPackages[packageId];
+    if (!pkg) {
+      throw new functions.https.HttpsError("invalid-argument", "Invalid package ID.");
+    }
+
+    // 5. Create Payment Request
+    const redirectUrl = "https://bichat-make-friendswith-bichat.netlify.app/coins";
+    // const webhookUrl = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/instamojoWebhook"; // Optional
+
+    const payload = new URLSearchParams();
+    payload.append('amount', pkg.price);
+    payload.append('purpose', `Purchase ${pkg.name}`);
+    payload.append('buyer_name', userName);
+    payload.append('email', userEmail);
+    payload.append('redirect_url', redirectUrl);
+    payload.append('allow_repeated_payments', 'false');
+
+    const response = await axios.post(
+      `${INSTAMOJO_API_ENDPOINT}/payment_requests/`,
+      payload,
+      {
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+      }
+    );
+
+    if (response.data && response.data.longurl) {
+        return { paymentUrl: response.data.longurl };
+    } else {
+        throw new Error("Failed to generate payment URL");
+    }
+
+  } catch (error) {
+    console.error("[CREATE_PAYMENT] Error:", error);
+    if (error.response) {
+         console.error("[CREATE_PAYMENT] API Response:", error.response.data);
+    }
+    throw new functions.https.HttpsError("internal", "Unable to create payment link.");
+  }
+});
+
+/**
+ * Verify Instamojo Payment
+ * Callable Function: Verifies payment via Instamojo API and credits coins
+ * Called by user after completing payment with Payment ID
+ */
 exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) => {
   // 1. Ensure user is authenticated
   if (!context.auth) {
@@ -404,16 +512,10 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
     );
   }
 
-  // 3. Check API credentials
-  if (!INSTAMOJO_API_KEY || !INSTAMOJO_AUTH_TOKEN) {
-    console.error("[VERIFY] Instamojo API credentials not configured");
-    throw new functions.https.HttpsError(
-      "failed-precondition",
-      "Payment verification is not configured. Please contact support."
-    );
-  }
-
   try {
+    // 3. Get API Access Token
+    const accessToken = await getInstamojoAccessToken();
+
     // 4. Check for duplicate payment processing
     const existingPayment = await admin.firestore()
       .collection("verified_payments")
@@ -443,13 +545,12 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
       `${INSTAMOJO_API_ENDPOINT}/payments/${paymentId}/`,
       {
         headers: {
-          "X-Api-Key": INSTAMOJO_API_KEY,
-          "X-Auth-Token": INSTAMOJO_AUTH_TOKEN,
+          "Authorization": `Bearer ${accessToken}`,
         },
       }
     );
 
-    const payment = response.data.payment;
+    const payment = response.data;
     
     // 6. Validate payment status
     if (payment.status !== "Credit") {
@@ -460,10 +561,11 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
     }
 
     // 7. Get package details and validate amount
+    // MAPPED TO FRONTEND PACKAGES (CoinsPage.jsx)
     const coinPackages = {
       1: { coins: 1, price: 1 },
-      2: { coins: 25, price: 2 },
-      3: { coins: 62, price: 1 },
+      2: { coins: 25, price: 20 },
+      3: { coins: 62, price: 50 },
     };
 
     const pkg = coinPackages[packageId];
@@ -558,10 +660,10 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
           "not-found",
           "Payment ID not found. Please check and try again."
         );
-      } else if (status === 401) {
+      } else if (status === 401 || status === 403) {
         throw new functions.https.HttpsError(
-          "failed-precondition",
-          "Payment verification service is not configured properly. Please contact support."
+          "unavailable",
+          "Payment verification service temporarily unavailable."
         );
       }
     }

@@ -32,30 +32,27 @@ const CoinsPage = () => {
             price: '₹1',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            paymentLink: 'https://imjo.in/NbaCv6'
         },
         {
             id: 2,
             name: '25 Coins',
-            amount: 25, // Updated amount
-            price: '₹20', // correct price
-            priceColor: '#FFD700', // Gold color for price
-            originalPrice: '₹3',
+            amount: 25,
+            price: '₹20',
+            priceColor: '#FFD700',
+            originalPrice: '₹30',
             discount: '33% OFF',
             popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            paymentLink: 'https://imjo.in/p7dNcP'
         },
         {
             id: 3,
             name: '62 Coins',
-            amount: 62, // Updated amount
-            price: '₹50', // correct price
-            originalPrice: '₹5',
+            amount: 62,
+            price: '₹50',
+            originalPrice: '₹80',
             discount: '40% OFF',
             popular: true,
-            gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)', // Premium gradient
-            paymentLink: 'https://imjo.in/EAhRc6'
+            gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)',
         },
     ];
 
@@ -154,10 +151,10 @@ const CoinsPage = () => {
     };
 
     const handlePurchase = async (pkg) => {
-        if (!user || !pkg.paymentLink) return;
+        if (!user) return; // Removed pkg.paymentLink check
 
         try {
-            // 1. Save state to localStorage so we know what they bought when they return
+            // 1. Save state to localStorage
             localStorage.setItem('pendingCoinPurchase', JSON.stringify({
                 id: pkg.id,
                 name: pkg.name,
@@ -166,12 +163,19 @@ const CoinsPage = () => {
                 timestamp: Date.now()
             }));
 
-            // 2. Open payment link (Redirect behavior)
-            // Use same window to ensure redirect comes back here cleanly, or new tab if preferred.
-            // For mobile, same window is often better for deep linking, but new tab is safer for keeping app state.
-            // Let's use new tab as requested originally, assuming redirect will open app/site in new tab/window.
-            // Actually, for "Redirect" flow, it's often better to redirect the CURRENT window so the back button works naturally.
-            window.location.href = pkg.paymentLink;
+            // 2. Call Cloud Function to create payment link
+            setLoading(true); // Show loading while generating link
+            const functions = getFunctions();
+            const createPayment = httpsCallable(functions, 'createInstamojoPayment');
+
+            const result = await createPayment({ packageId: pkg.id });
+
+            if (result.data && result.data.paymentUrl) {
+                // 3. Redirect to Instamojo
+                window.location.href = result.data.paymentUrl;
+            } else {
+                throw new Error("No payment URL returned");
+            }
 
         } catch (error) {
             console.error('Error initiating purchase:', error);
@@ -180,6 +184,7 @@ const CoinsPage = () => {
                 message: 'Failed to initiate purchase. Please try again.',
                 severity: 'error'
             });
+            setLoading(false);
         }
     };
 
@@ -329,7 +334,7 @@ const CoinsPage = () => {
                                                 variant="contained"
                                                 fullWidth
                                                 onClick={() => handlePurchase(pkg)}
-                                                disabled={!pkg.paymentLink}
+                                                disabled={loading}
                                                 sx={{
                                                     mt: 2,
                                                     py: 1.5,
@@ -345,9 +350,9 @@ const CoinsPage = () => {
                                                         color: 'rgba(0, 0, 0, 0.5)',
                                                     }
                                                 }}
-                                                startIcon={<CheckCircle />}
+                                                startIcon={loading ? <CircularProgress size={20} /> : <CheckCircle />}
                                             >
-                                                {pkg.paymentLink ? 'Buy Now' : 'Unavailable'}
+                                                {loading ? 'Processing...' : 'Buy Now'}
                                             </Button>
                                         </CardContent>
                                     </Card>
@@ -466,8 +471,8 @@ const CoinsPage = () => {
                             {snackbar.message}
                         </Alert>
                     </Snackbar>
-                </Container>
-            </Box>
+                </Container >
+            </Box >
         </>
     );
 };
