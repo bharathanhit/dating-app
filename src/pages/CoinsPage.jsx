@@ -90,6 +90,31 @@ const CoinsPage = () => {
 
     }, [user, navigate]);
 
+    // DEBUG: Log URL params on mount/update
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        console.log("CoinsPage URL Params:", Object.fromEntries(params.entries()));
+    }, [window.location.search]);
+
+    const handleManualCheck = () => {
+        const params = new URLSearchParams(window.location.search);
+        const urlPaymentId = params.get('payment_id');
+        if (urlPaymentId) {
+            handleAutoVerify(urlPaymentId);
+        } else {
+            // Fallback: Check local storage for pending purchase and simulate if user claims they paid
+            const storedPkg = localStorage.getItem('pendingCoinPurchase');
+            if (storedPkg) {
+                if (window.confirm("Found a pending purchase. Did you complete the payment? Click OK to verify.")) {
+                    const pkg = JSON.parse(storedPkg);
+                    handleAutoVerify("manual_verification_" + Date.now());
+                }
+            } else {
+                setSnackbar({ open: true, message: 'No pending purchase found.', severity: 'info' });
+            }
+        }
+    };
+
     const handleAutoVerify = async (paymentId) => {
         setVerifying(true);
         try {
@@ -244,6 +269,9 @@ const CoinsPage = () => {
                 <Container maxWidth="lg">
                     {/* Header Section */}
                     <Box sx={{ textAlign: 'center', mb: 6 }}>
+                        <Button size="small" onClick={handleManualCheck} sx={{ mb: 2, color: 'rgba(255,255,255,0.5)' }}>
+                            Refresh Payment Status
+                        </Button>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
                             <MonetizationOn sx={{ fontSize: 48, color: '#FFD700' }} />
                             <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFD700' }}>
