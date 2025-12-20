@@ -295,6 +295,11 @@ const CoinsPage = () => {
                 }}
             />
 
+            {/* DEBUG BANNER TO VERIFY VERSION */}
+            <Box sx={{ bgcolor: 'red', color: 'white', p: 1, textAlign: 'center', fontWeight: 'bold', position: 'fixed', top: 0, width: '100%', zIndex: 10000 }}>
+                DEBUG MODE: NEWEST VERSION LOADED (V5)
+            </Box>
+
             <Box
                 sx={{
                     minHeight: '100vh',
