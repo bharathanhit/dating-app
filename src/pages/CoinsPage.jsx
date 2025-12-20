@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { getCoinTransactions } from '../services/coinService';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import SEOHead from '../components/SEOHead';
+import SuccessAnimation from '../components/SuccessAnimation';
 import SuccessAnimation from '../components/SuccessAnimation';
 
 const CoinsPage = () => {
@@ -195,7 +196,7 @@ const CoinsPage = () => {
         if (!user) return;
 
         try {
-            setLoading(true); // Show loading
+            setLoading(true);
 
             // 1. Save state to localStorage
             localStorage.setItem('pendingCoinPurchase', JSON.stringify({
@@ -206,17 +207,37 @@ const CoinsPage = () => {
                 timestamp: Date.now()
             }));
 
-            // 2. Call Netlify Function
+            // 2. CHECK ENVIRONMENT: Localhost cannot use Netlify Functions directly without 'netlify dev'
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+            if (isLocalhost) {
+                console.warn("Localhost detected: Netlify Functions require 'netlify dev'. Falling back to static link or simulation.");
+                if (pkg.paymentLink) {
+                    window.location.href = pkg.paymentLink;
+                    return;
+                } else {
+                    alert("On localhost, dynamic payments require 'netlify dev'. Please test on the deployed site.");
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            // 3. Call Netlify Function (Production / Deployed)
             const response = await fetch('/.netlify/functions/create_payment', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ packageId: pkg.id })
             });
 
+            // Handle non-JSON response (e.g., HTML error page)
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("Received non-JSON response from server. Service might be unavailable.");
+            }
+
             const data = await response.json();
 
             if (response.ok && data.paymentUrl) {
-                // 3. Redirect to Instamojo
                 window.location.href = data.paymentUrl;
             } else {
                 throw new Error(data.error || "Failed to create payment link");
@@ -226,7 +247,7 @@ const CoinsPage = () => {
             console.error('Error initiating purchase:', error);
             setSnackbar({
                 open: true,
-                message: error.message || 'Failed to initiate purchase.',
+                message: String(error.message || 'Failed to initiate purchase.'),
                 severity: 'error'
             });
             setLoading(false);
@@ -382,7 +403,7 @@ const CoinsPage = () => {
                                                 variant="contained"
                                                 fullWidth
                                                 onClick={() => handlePurchase(pkg)}
-                                                disabled={!pkg.paymentLink}
+                                                disabled={loading || !pkg.paymentLink}
                                                 sx={{
                                                     mt: 2,
                                                     py: 1.5,
@@ -398,9 +419,9 @@ const CoinsPage = () => {
                                                         color: 'rgba(0, 0, 0, 0.5)',
                                                     }
                                                 }}
-                                                startIcon={<CheckCircle />}
+                                                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CheckCircle />}
                                             >
-                                                {pkg.paymentLink ? 'Buy Now' : 'Unavailable'}
+                                                {loading ? 'Processing...' : (pkg.paymentLink ? 'Buy Now' : 'Unavailable')}
                                             </Button>
                                         </CardContent>
                                     </Card>
