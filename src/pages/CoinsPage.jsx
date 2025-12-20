@@ -1,3 +1,4 @@
+// Version: ManualCheck_Fix_v3
 import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Card, CardContent, Button, Grid, Paper, Divider, CircularProgress, Alert, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { MonetizationOn, CheckCircle, History } from '@mui/icons-material';
@@ -5,8 +6,6 @@ import { useAuth } from '../context/AuthContext';
 import { getCoinTransactions } from '../services/coinService';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
-import SEOHead from '../components/SEOHead';
-import SuccessAnimation from '../components/SuccessAnimation';
 import SuccessAnimation from '../components/SuccessAnimation';
 
 const CoinsPage = () => {
