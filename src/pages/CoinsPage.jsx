@@ -311,7 +311,7 @@ const CoinsPage = () => {
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
                             <MonetizationOn sx={{ fontSize: 48, color: '#FFD700' }} />
                             <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFD700' }}>
-                                Your Coins
+                                Your Coins (v4)
                             </Typography>
                         </Box>
 
