@@ -195,6 +195,8 @@ const CoinsPage = () => {
         if (!user) return;
 
         try {
+            setLoading(true); // Show loading
+
             // 1. Save state to localStorage
             localStorage.setItem('pendingCoinPurchase', JSON.stringify({
                 id: pkg.id,
@@ -204,20 +206,30 @@ const CoinsPage = () => {
                 timestamp: Date.now()
             }));
 
-            // 2. Direct Redirect (Testing Mode / Static Links)
-            if (pkg.paymentLink) {
-                window.location.href = pkg.paymentLink;
+            // 2. Call Netlify Function
+            const response = await fetch('/.netlify/functions/create_payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ packageId: pkg.id })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.paymentUrl) {
+                // 3. Redirect to Instamojo
+                window.location.href = data.paymentUrl;
             } else {
-                setSnackbar({ open: true, message: 'Payment link unavailable for this package.', severity: 'error' });
+                throw new Error(data.error || "Failed to create payment link");
             }
 
         } catch (error) {
             console.error('Error initiating purchase:', error);
             setSnackbar({
                 open: true,
-                message: 'Failed to initiate purchase.',
+                message: error.message || 'Failed to initiate purchase.',
                 severity: 'error'
             });
+            setLoading(false);
         }
     };
 
