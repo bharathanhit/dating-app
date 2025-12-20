@@ -105,12 +105,16 @@ const CoinsPage = () => {
             // Fallback: Check local storage for pending purchase and simulate if user claims they paid
             const storedPkg = localStorage.getItem('pendingCoinPurchase');
             if (storedPkg) {
-                if (window.confirm("Found a pending purchase. Did you complete the payment? Click OK to verify.")) {
-                    const pkg = JSON.parse(storedPkg);
-                    handleAutoVerify("manual_verification_" + Date.now());
-                }
+                const pkg = JSON.parse(storedPkg);
+                // DIRECTLY ADD COINS FOR TESTING without confirmation
+                import('../services/coinService').then(module => {
+                    module.addCoins(user.uid, pkg.amount, `manual_test_${Date.now()}`).then(() => {
+                        setSnackbar({ open: true, message: `Added ${pkg.amount} Test Coins!`, severity: 'success' });
+                        localStorage.removeItem('pendingCoinPurchase');
+                    });
+                });
             } else {
-                setSnackbar({ open: true, message: 'No pending purchase found.', severity: 'info' });
+                setSnackbar({ open: true, message: 'No pending purchase found in storage.', severity: 'warning' });
             }
         }
     };
@@ -269,8 +273,8 @@ const CoinsPage = () => {
                 <Container maxWidth="lg">
                     {/* Header Section */}
                     <Box sx={{ textAlign: 'center', mb: 6 }}>
-                        <Button size="small" onClick={handleManualCheck} sx={{ mb: 2, color: 'rgba(255,255,255,0.5)' }}>
-                            Refresh Payment Status
+                        <Button variant="outlined" size="small" onClick={handleManualCheck} sx={{ mb: 2, color: '#FFD700', borderColor: '#FFD700' }}>
+                            Verify / Add Test Coins
                         </Button>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
                             <MonetizationOn sx={{ fontSize: 48, color: '#FFD700' }} />
