@@ -41,6 +41,16 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests - POST/PUT/DELETE should always go to network
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Skip Netlify and Firebase functions
+  if (event.request.url.includes('/.netlify/functions/') || event.request.url.includes('/creators/')) {
+    return;
+  }
+
   // Network First strategy for navigation requests (HTML pages)
   // This ensures users always get the latest version of the app
   if (event.request.mode === 'navigate') {

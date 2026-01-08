@@ -12,7 +12,7 @@ exports.handler = async function (event, context) {
 
     // --- CONFIGURATION (MOVE TO ENV VARS IN PRODUCTION) ---
     const INSTAMOJO_CLIENT_ID = "t3DvU9c4jXQB8ng5ro60jmw7fqvFdLdMk104ekFv";
-    const INSTAMOJO_CLIENT_SECRET = "WsmwStFWfaeb6MFmR9BsUGZY9IuMNUeC2xITVL1XqtQ0wK7JFE7yGcuBTc9F2utOAWV0cB5iSLvJtO2DjDwdvZvTBktUmP0fhdCRZzOk2GTFnhDyMlppT2Vgmr3kAoRx";
+    const INSTAMOJO_CLIENT_SECRET = "WsmwStFWfaeb6MFmR9BsUGZY9IuMNUeC2xITVL1XqtQ0wK7JFE7yGcuBTc9F2utOAWV0cB5iSLvJtO2DjDwdvZvTBktUmP0fhdCRZzOk2GTfnhDyMlppT2Vgmr3kAoRx";
     const INSTAMOJO_API_ENDPOINT = "https://api.instamojo.com/v2";
     const INSTAMOJO_OAUTH_ENDPOINT = "https://api.instamojo.com/oauth2/token/";
     // ------------------------------------------------------

@@ -5,12 +5,19 @@
   publish = "dist"
   command = "npm run build"
 
-# SPA routing - redirect all routes to index.html except static files
+[functions]
+  directory = "netlify/functions"
+
+# SPA routing - redirect all routes to index.html except static files and functions
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-  force = false
   force = false
 
 # Headers for static assets
