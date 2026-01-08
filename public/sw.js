@@ -1,5 +1,5 @@
 // Service Worker for BiChat PWA
-const CACHE_NAME = 'bichat-v3';
+const CACHE_NAME = 'bichat-v4';
 const urlsToCache = [
   '/',
   '/index.html',
