@@ -32,7 +32,7 @@ export const storage = getStorage(app);
 // Initialize Realtime Database
 export const realtimeDb = getDatabase(app);
 
-// Initialize Cloud Functions
-export const functions = getFunctions(app);
+// Initialize Cloud Functions with region
+export const functions = getFunctions(app, 'us-central1');
 
 export default app;

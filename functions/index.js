@@ -413,6 +413,7 @@ async function getInstamojoAccessToken() {
 /**
  * Create Instamojo Payment Request
  * Callable Function: Generates a payment link
+ * CORS is automatically handled by Firebase for callable functions
  */
 exports.createInstamojoPayment = functions.https.onCall(async (data, context) => {
   // 1. Ensure user is authenticated
