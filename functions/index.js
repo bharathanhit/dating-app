@@ -439,9 +439,9 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
 
     // 4. Get package details
     const coinPackages = {
-      1: { coins: 1, price: 1, name: "1 Coins" },
+      1: { coins: 10, price: 10, name: "10 Coins" },
       2: { coins: 25, price: 20, name: "25 Coins" },
-      3: { coins: 62, price: 50, name: "62 Coins" },
+      3: { coins: 65, price: 50, name: "65 Coins" },
     };
 
     const pkg = coinPackages[packageId];
@@ -450,7 +450,7 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
     }
 
     // 5. Create Payment Request
-    const redirectUrl = "https://bichat-make-friendswith-bichat.netlify.app/coins";
+    const redirectUrl = "https://bi-chat.online/coins";
     // const webhookUrl = "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/instamojoWebhook"; // Optional
 
     const payload = new URLSearchParams();
@@ -563,9 +563,9 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
     // 7. Get package details and validate amount
     // MAPPED TO FRONTEND PACKAGES (CoinsPage.jsx)
     const coinPackages = {
-      1: { coins: 1, price: 1 },
+      1: { coins: 10, price: 10 },
       2: { coins: 25, price: 20 },
-      3: { coins: 62, price: 50 },
+      3: { coins: 65, price: 50 },
     };
 
     const pkg = coinPackages[packageId];

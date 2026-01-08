@@ -1,9 +1,10 @@
 // Version: ManualCheck_Fix_v3
 import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Card, CardContent, Button, Grid, Paper, Divider, CircularProgress, Alert, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme } from '@mui/material';
-import { MonetizationOn, CheckCircle, History } from '@mui/icons-material';
+import { MonetizationOn, CheckCircle, History, Stars } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { getCoinTransactions } from '../services/coinService';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import SuccessAnimation from '../components/SuccessAnimation';
@@ -22,14 +23,15 @@ const CoinsPage = () => {
     const [verifying, setVerifying] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [creditedAmount, setCreditedAmount] = useState(0);
+    const [showPop, setShowPop] = useState(false);
 
     // Coin packages
     const coinPackages = [
         {
             id: 1,
-            name: '1 Coins',
-            amount: 1,
-            price: '₹1',
+            name: '10 Coins',
+            amount: 10,
+            price: '₹10',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             paymentLink: 'https://imjo.in/NbaCv6'
@@ -48,8 +50,8 @@ const CoinsPage = () => {
         },
         {
             id: 3,
-            name: '62 Coins',
-            amount: 62,
+            name: '65 Coins',
+            amount: 65,
             price: '₹50',
             originalPrice: '₹80',
             discount: '40% OFF',
@@ -109,12 +111,15 @@ const CoinsPage = () => {
                 // DIRECTLY ADD COINS FOR TESTING without confirmation
                 import('../services/coinService').then(module => {
                     module.addCoins(user.uid, pkg.amount, `manual_test_${Date.now()}`).then(() => {
-                        setSnackbar({ open: true, message: `Added ${pkg.amount} Test Coins!`, severity: 'success' });
+                        setCreditedAmount(pkg.amount);
+                        setShowPop(true);
+                        setTimeout(() => setShowPop(false), 3000);
+                        setSnackbar({ open: true, message: `Successfully Claimed ${pkg.amount} Coins!`, severity: 'success' });
                         localStorage.removeItem('pendingCoinPurchase');
                     });
                 });
             } else {
-                setSnackbar({ open: true, message: 'No pending purchase found in storage.', severity: 'warning' });
+                setSnackbar({ open: true, message: 'No pending purchase found to claim.', severity: 'warning' });
             }
         }
     };
@@ -158,10 +163,12 @@ const CoinsPage = () => {
             // If we reach here, verification was successful
             setCreditedAmount(amount || 0);
             setShowSuccess(true);
+            setShowPop(true);
+            setTimeout(() => setShowPop(false), 3000);
 
             setSnackbar({
                 open: true,
-                message: 'Payment Verified! Coins added successfully.',
+                message: 'Payment Claimed Successfully!',
                 severity: 'success'
             });
 
@@ -253,9 +260,19 @@ const CoinsPage = () => {
         }
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
+    const formatDate = (dateValue) => {
+        if (!dateValue) return 'N/A';
+
+        let date;
+        // Handle Firestore Timestamp objects
+        if (dateValue && typeof dateValue.toDate === 'function') {
+            date = dateValue.toDate();
+        } else {
+            date = new Date(dateValue);
+        }
+
+        if (isNaN(date.getTime())) return 'Invalid Date';
+
         return date.toLocaleDateString('en-US', {
             month: 'short',
             day: 'numeric',
@@ -276,10 +293,10 @@ const CoinsPage = () => {
     return (
         <>
             <SEOHead
-                title="Buy Coins | Bichat"
-                description="Purchase coins to like profiles and unlock premium features on Bichat."
-                keywords="buy coins, purchase coins, dating app coins, Bichat coins"
-                url="https://bichat-make-friendswith-bichat.netlify.app/coins"
+                title="Buy Coins | BiChat"
+                description="Purchase coins to like profiles and unlock premium features on BiChat."
+                keywords="buy coins, purchase coins, dating app coins, BiChat coins"
+                url="https://bi-chat.online/coins"
             />
 
             {/* Premium Fixed Background */}
@@ -296,9 +313,7 @@ const CoinsPage = () => {
             />
 
             {/* DEBUG BANNER TO VERIFY VERSION */}
-            <Box sx={{ bgcolor: 'red', color: 'white', p: 1, textAlign: 'center', fontWeight: 'bold', position: 'fixed', top: 0, width: '100%', zIndex: 10000 }}>
-                DEBUG MODE: NEWEST VERSION LOADED (V5)
-            </Box>
+
 
             <Box
                 sx={{
@@ -310,13 +325,36 @@ const CoinsPage = () => {
                 <Container maxWidth="lg">
                     {/* Header Section */}
                     <Box sx={{ textAlign: 'center', mb: 6 }}>
-                        <Button variant="outlined" size="small" onClick={handleManualCheck} sx={{ mb: 2, color: '#FFD700', borderColor: '#FFD700' }}>
-                            Verify / Add Test Coins
+                        <Button
+                            variant="contained"
+                            size="large"
+                            onClick={handleManualCheck}
+                            startIcon={<Stars />}
+                            sx={{
+                                mb: 3,
+                                background: 'linear-gradient(45deg, #FFD700 30%, #FFA500 90%)',
+                                color: '#000',
+                                fontWeight: 800,
+                                px: 4,
+                                py: 1.5,
+                                borderRadius: '50px',
+                                boxShadow: '0 4px 15px rgba(255, 215, 0, 0.4)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '1px',
+                                '&:hover': {
+                                    background: 'linear-gradient(45deg, #FFC800 30%, #FF9100 90%)',
+                                    transform: 'scale(1.05)',
+                                    boxShadow: '0 6px 20px rgba(255, 215, 0, 0.6)',
+                                },
+                                transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+                            }}
+                        >
+                            Claim My Coins
                         </Button>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
                             <MonetizationOn sx={{ fontSize: 48, color: '#FFD700' }} />
                             <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFD700' }}>
-                                Your Coins (v4)
+                                Your Coins
                             </Typography>
                         </Box>
 
@@ -520,6 +558,54 @@ const CoinsPage = () => {
                             </TableContainer>
                         )}
                     </Box>
+
+                    {/* Pop Animation for Claiming */}
+                    <AnimatePresence>
+                        {showPop && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.5, y: 50 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.5, y: -50 }}
+                                style={{
+                                    position: 'fixed',
+                                    top: '40%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    zIndex: 9999,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                <Paper
+                                    elevation={24}
+                                    sx={{
+                                        p: 4,
+                                        borderRadius: 8,
+                                        background: 'rgba(255, 215, 0, 0.95)',
+                                        backdropFilter: 'blur(10px)',
+                                        textAlign: 'center',
+                                        border: '4px solid #FFF',
+                                        boxShadow: '0 0 50px rgba(255, 215, 0, 0.8)'
+                                    }}
+                                >
+                                    <motion.div
+                                        animate={{
+                                            rotate: [0, -10, 10, -10, 10, 0],
+                                            scale: [1, 1.1, 1]
+                                        }}
+                                        transition={{ duration: 0.5, repeat: Infinity }}
+                                    >
+                                        <Stars sx={{ fontSize: 80, color: '#000' }} />
+                                    </motion.div>
+                                    <Typography variant="h3" sx={{ fontWeight: 900, color: '#000', mt: 2 }}>
+                                        +{creditedAmount}
+                                    </Typography>
+                                    <Typography variant="h5" sx={{ fontWeight: 700, color: '#000', textTransform: 'uppercase' }}>
+                                        Coins Claimed!
+                                    </Typography>
+                                </Paper>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {/* Success Animation Overlay */}
                     {showSuccess && (

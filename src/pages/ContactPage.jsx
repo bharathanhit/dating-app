@@ -26,9 +26,9 @@ const ContactPage = () => {
     return (
         <>
             <SEOHead
-                title="Contact Us | Bichat"
-                description="Get in touch with the Bichat team. We are here to help you with any questions or feedback."
-                url="https://bichat-make-friendswith-bichat.netlify.app/contact"
+                title="Contact Us | BiChat"
+                description="Get in touch with the BiChat team. We are here to help you with any questions or feedback."
+                url="https://bi-chat.online/contact"
             />
             <Box
                 sx={{
@@ -55,7 +55,7 @@ const ContactPage = () => {
                                     Get in Touch
                                 </Typography>
                                 <Typography variant="body1" sx={{ color: 'text.secondary', mb: 4 }}>
-                                    Have questions about Bichat or need support? Fill out the form and our team will respond within 24 hours.
+                                    Have questions about BiChat or need support? Fill out the form and our team will respond within 24 hours.
                                 </Typography>
 
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>

@@ -1,5 +1,5 @@
-// Service Worker for Bichat PWA
-const CACHE_NAME = 'bichat-v2';
+// Service Worker for BiChat PWA
+const CACHE_NAME = 'bichat-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -12,11 +12,11 @@ const urlsToCache = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
+      .then((cache) => { 
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
-      })
-  );
+      })            
+  );                
   // Force the waiting service worker to become the active service worker
   self.skipWaiting();
 });
@@ -103,3 +103,12 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+
+
+
+
+
+
+
+

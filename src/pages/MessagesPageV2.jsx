@@ -643,8 +643,8 @@ const MessagesPageV2 = () => {
   return (
     <>
       <SEOHead
-        title="Messages | Bichat Dating"
-        description="Chat with your matches on Bichat"
+        title="Messages | BiChat Dating"
+        description="Chat with your matches on BiChat"
         noindex={true}
       />
       <Container maxWidth={false} disableGutters sx={{ height: "100dvh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>

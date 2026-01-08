@@ -18,9 +18,9 @@ exports.handler = async function (event, context) {
     // ------------------------------------------------------
 
     const coinPackages = {
-      1: { coins: 1, price: 1, name: "1 Coins" },
+      1: { coins: 10, price: 10, name: "10 Coins" },
       2: { coins: 25, price: 20, name: "25 Coins" },
-      3: { coins: 62, price: 50, name: "62 Coins" },
+      3: { coins: 65, price: 50, name: "65 Coins" },
     };
 
     const pkg = coinPackages[packageId];
@@ -38,7 +38,7 @@ exports.handler = async function (event, context) {
     const accessToken = tokenResponse.data.access_token;
 
     // 2. Create Payment Request
-    const redirectUrl = "https://bichat-make-friendswith-bichat.netlify.app/coins";
+    const redirectUrl = "https://bi-chat.online/coins";
     
     const payload = new URLSearchParams();
     payload.append('amount', pkg.price);

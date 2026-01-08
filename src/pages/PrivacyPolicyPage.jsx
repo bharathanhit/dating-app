@@ -5,9 +5,9 @@ const PrivacyPolicyPage = () => {
     return (
         <>
             <SEOHead
-                title="Privacy Policy | Bichat"
-                description="Learn how Bichat collects, uses, and protects your personal data."
-                url="https://bichat-make-friendswith-bichat.netlify.app/privacy"
+                title="Privacy Policy | BiChat"
+                description="Learn how BiChat collects, uses, and protects your personal data."
+                url="https://bi-chat.online/privacy"
             />
             <Box
                 sx={{
@@ -28,7 +28,7 @@ const PrivacyPolicyPage = () => {
 
                         <Box sx={{ typography: 'body1', color: '#333', lineHeight: 1.7 }}>
                             <p>
-                                At Bichat, we value your privacy and are committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your data when you use our website and services.
+                                At BiChat, we value your privacy and are committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your data when you use our website and services.
                             </p>
 
                             <Typography variant="h5" sx={{ fontWeight: 700, mt: 4, mb: 2 }}>
@@ -101,7 +101,7 @@ const PrivacyPolicyPage = () => {
                         </Box>
 
                         <Typography variant="body2" color="text.secondary" align="center">
-                            © {new Date().getFullYear()} Bichat. All rights reserved.
+                            © {new Date().getFullYear()} BiChat. All rights reserved.
                         </Typography>
                     </Paper>
                 </Container>

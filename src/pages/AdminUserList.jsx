@@ -185,12 +185,16 @@ const AdminUserList = () => {
         const statusRef = ref(realtimeDb, 'status');
         const unsubscribe = onValue(statusRef, (snapshot) => {
             const data = snapshot.val();
+            console.log("[AdminUserList] Raw RTDB Status Data:", data);
             if (data) {
                 // Convert { uid: {online: true, ...} } to { uid: true/false }
                 const onlineMap = {};
                 Object.keys(data).forEach(uid => {
-                    onlineMap[uid] = data[uid].online === true;
+                    // Check strict equality to true
+                    const isUserOnline = data[uid]?.online === true;
+                    onlineMap[uid] = isUserOnline;
                 });
+                console.log("[AdminUserList] Processed Online Map:", onlineMap);
                 setOnlineUsers(onlineMap);
             } else {
                 setOnlineUsers({});
@@ -206,7 +210,7 @@ const AdminUserList = () => {
         const term = searchTerm.toLowerCase();
         let filtered = users.map(u => ({
             ...u,
-            isOnline: onlineUsers[u.uid] || false
+            isOnline: (onlineUsers && onlineUsers[u.uid] === true) // Strict check
         }));
 
         // Apply Tab Filter
@@ -241,7 +245,7 @@ const AdminUserList = () => {
     if (!isAdminAuthenticated) {
         return (
             <>
-                <SEOHead title="Admin Login | Bichat" noindex={true} />
+                <SEOHead title="Admin Login | BiChat" noindex={true} />
                 <Container maxWidth="xs" sx={{ mt: 10, mb: 10 }}>
                     <Paper sx={{ p: 4, borderRadius: 3, boxShadow: '0 8px 30px rgba(0,0,0,0.1)' }}>
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
@@ -296,7 +300,7 @@ const AdminUserList = () => {
 
     return (
         <>
-            <SEOHead title="Admin Dashboard | Bichat" noindex={true} />
+            <SEOHead title="Admin Dashboard | BiChat" noindex={true} />
             <Container maxWidth="xl" sx={{ mt: 4, mb: 10 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                     <Typography variant="h4" sx={{ fontWeight: 700, color: '#333' }}>
@@ -309,6 +313,48 @@ const AdminUserList = () => {
                     >
                         Refresh List
                     </Button>
+                    <Box sx={{ ml: 2 }}>
+                        <Button
+                            variant="outlined"
+                            color="warning"
+                            size="small"
+                            onClick={async () => {
+                                if (window.confirm("This will reset ALL user online statuses to offline. Useful if data is stale. Continue?")) {
+                                    try {
+                                        const { ref, set, get, remove } = await import('firebase/database');
+                                        const statusRef = ref(realtimeDb, 'status');
+
+                                        // Try bulk delete first
+                                        try {
+                                            await remove(statusRef);
+                                            alert("Online statuses reset (Bulk Delete Success).");
+                                            return;
+                                        } catch (bulkError) {
+                                            console.warn("Bulk delete failed, trying individual...", bulkError);
+                                        }
+
+                                        // Fallback to individual delete
+                                        const snapshot = await get(statusRef);
+                                        if (snapshot.exists()) {
+                                            const updates = {};
+                                            snapshot.forEach(child => {
+                                                updates[child.key] = null;
+                                            });
+                                            await set(statusRef, updates); // Try multi-path update
+                                            alert("Online statuses reset (Multi-path Update Success).");
+                                        } else {
+                                            alert("No online users found to reset.");
+                                        }
+                                    } catch (e) {
+                                        console.error(e);
+                                        alert("Failed to reset: " + e.message);
+                                    }
+                                }
+                            }}
+                        >
+                            Reset Online Status
+                        </Button>
+                    </Box>
                 </Box>
 
                 <Paper sx={{ mb: 3, p: 2, borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
@@ -455,6 +501,9 @@ const AdminUserList = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
+                                            <div style={{ fontSize: '0.6rem', color: '#999', fontFamily: 'monospace' }}>
+                                                RTDB: {JSON.stringify(onlineUsers[u.uid])}
+                                            </div>
                                             {u.isOnline ? (
                                                 <Chip
                                                     icon={<Circle sx={{ fontSize: '0.6rem !important', color: '#235a25ff' }} />}
@@ -462,13 +511,24 @@ const AdminUserList = () => {
                                                     sx={{
                                                         borderColor: '#4caf50',
                                                         color: '#2e7d32',
-                                                        bgcolor: 'rgba(107, 205, 110, 0.33)'
+                                                        bgcolor: 'rgba(107, 205, 110, 0.33)',
+                                                        fontWeight: 'bold'
                                                     }}
                                                     size="small"
                                                     variant="outlined"
                                                 />
                                             ) : (
-                                                <Chip label="Offline" size="small" variant="outlined" color="default" />
+                                                <Chip
+                                                    icon={<Circle sx={{ fontSize: '0.6rem !important', color: '#9e9e9e' }} />}
+                                                    label="Offline"
+                                                    size="small"
+                                                    variant="outlined"
+                                                    sx={{
+                                                        borderColor: '#e0e0e0',
+                                                        color: '#757575',
+                                                        bgcolor: '#fafafa'
+                                                    }}
+                                                />
                                             )}
                                         </TableCell>
                                         <TableCell>
@@ -513,7 +573,7 @@ const AdminUserList = () => {
                 </TableContainer>
 
                 <Typography variant="caption" display="block" sx={{ mt: 2, textAlign: 'center', color: 'text.secondary' }}>
-                    Total Users: {users.length} | Showing: {filteredUsers.length}
+                    Total Users: {users.length} | Showing: {filteredUsers.length} | Online Detected: {Object.values(onlineUsers).filter(v => v).length}
                 </Typography>
 
                 {/* Block User Dialog */}
@@ -543,6 +603,22 @@ const AdminUserList = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
+                {/* Debug Section */}
+                <Box sx={{ mt: 4, p: 2, bgcolor: '#f0f0f0', borderRadius: 2, fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                    <Typography variant="subtitle2" fontWeight="bold">DEBUG VIEW (Status Diagnosis)</Typography>
+                    <Box sx={{ mb: 1 }}>
+                        <strong>Online Users Map Size:</strong> {Object.keys(onlineUsers).length} <br />
+                        <strong>Filtered Users Count:</strong> {filteredUsers.length}
+                    </Box>
+                    <details>
+                        <summary style={{ cursor: 'pointer' }}>View Raw Online Map</summary>
+                        <pre>{JSON.stringify(onlineUsers, null, 2)}</pre>
+                    </details>
+                    <details>
+                        <summary style={{ cursor: 'pointer', marginTop: '8px' }}>View First 2 Users Data</summary>
+                        <pre>{JSON.stringify(filteredUsers.slice(0, 2).map(u => ({ uid: u.uid, name: u.name, isOnline: u.isOnline })), null, 2)}</pre>
+                    </details>
+                </Box>
             </Container>
         </>
     );

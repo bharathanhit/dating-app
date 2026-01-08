@@ -6,7 +6,7 @@
   
   <!-- Homepage -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/</loc>
+    <loc>https://bi-chat.online/</loc>
     <lastmod>2025-12-05T18:45:00+05:30</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
@@ -14,7 +14,7 @@
   
   <!-- Login Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/login</loc>
+    <loc>https://bi-chat.online/login</loc>
     <lastmod>2025-12-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -22,7 +22,7 @@
   
   <!-- Sign Up Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/signup</loc>
+    <loc>https://bi-chat.online/signup</loc>
     <lastmod>2025-12-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -30,7 +30,7 @@
   
   <!-- Contact Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/contact</loc>
+    <loc>https://bi-chat.online/contact</loc>
     <lastmod>2025-12-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
@@ -38,7 +38,7 @@
 
   <!-- Privacy Policy Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/privacy</loc>
+    <loc>https://bi-chat.online/privacy</loc>
     <lastmod>2025-12-07</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
@@ -46,7 +46,7 @@
 
   <!-- Refund Policy Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/refund-policy</loc>
+    <loc>https://bi-chat.online/refund-policy</loc>
     <lastmod>2025-12-07</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
@@ -54,7 +54,7 @@
 
   <!-- Terms and Conditions Page -->
   <url>
-    <loc>https://bichat-make-friendswith-bichat.netlify.app/terms</loc>
+    <loc>https://bi-chat.online/terms</loc>
     <lastmod>2025-12-07</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

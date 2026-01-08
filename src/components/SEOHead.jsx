@@ -7,14 +7,14 @@ import PropTypes from 'prop-types';
  * Supports Open Graph and Twitter Card tags for social media sharing
  */
 const SEOHead = ({
-    title = 'Bichat - Find Your Perfect Match | Modern Dating App',
-    description = 'Discover meaningful connections on Bichat. Browse profiles, chat with matches, and find your perfect partner. Join thousands of singles looking for love.',
-    keywords = 'dating app, online dating, find love, relationships, matches, singles, dating site, meet people, romance, connections, Bichat',
-    image = 'https://bichat-make-friendswith-bichat.netlify.app/og-image-optimized.png',
-    url = 'https://bichat-make-friendswith-bichat.netlify.app/',
+    title = 'BiChat - Find Your Perfect Match | Modern Dating & Connection App',
+    description = 'Discover meaningful connections on BiChat. The best modern dating app to browse profiles, chat with matches, and find your perfect partner safely.',
+    keywords = 'dating app, online dating, find love, relationships, matches, singles, dating site, meet people, romance, connections, BiChat, private chat, secure dating',
+    image = 'https://bi-chat.online/og-image-optimized.png',
+    url = 'https://bi-chat.online/',
     type = 'website',
     noindex = false,
-    author = 'Bichat',
+    author = 'BiChat',
     schema = null,
 }) => {
     useEffect(() => {

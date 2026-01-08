@@ -153,18 +153,18 @@ const HomePage = () => {
     return (
       <>
         <SEOHead
-          title="Discover Your Perfect Match | Bichat Dating"
-          description="Browse profiles and find your perfect match on Bichat. Connect with singles in your area looking for meaningful relationships."
-          keywords="dating profiles, browse singles, find matches, online dating, meet people, Bichat"
-          url="https://bichat-make-friendswith-bichat.netlify.app/"
+          title="Discover Your Perfect Match | BiChat Dating"
+          description="Browse profiles and find your perfect match on BiChat. Connect with singles in your area looking for meaningful relationships."
+          keywords="dating profiles, browse singles, find matches, online dating, meet people, BiChat"
+          url="https://bi-chat.online/"
           schema={{
             "@context": "https://schema.org",
             "@type": "WebSite",
-            "name": "Bichat",
-            "url": "https://bichat-make-friendswith-bichat.netlify.app/",
+            "name": "BiChat",
+            "url": "https://bi-chat.online/",
             "potentialAction": {
               "@type": "SearchAction",
-              "target": "https://bichat-make-friendswith-bichat.netlify.app/?search={search_term_string}",
+              "target": "https://bi-chat.online/?search={search_term_string}",
               "query-input": "required name=search_term_string"
             }
           }}

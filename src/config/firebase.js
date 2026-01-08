@@ -6,7 +6,7 @@ import { getDatabase } from 'firebase/database';
 import { getFunctions } from 'firebase/functions';
 
 // Firebase configuration
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyADG4gONMt7vfgLllYPBe3LKD9S0xwQzEA",
   authDomain: "date-3963e.firebaseapp.com",
   databaseURL: "https://date-3963e-default-rtdb.firebaseio.com",

@@ -5,9 +5,9 @@ const RefundPolicyPage = () => {
     return (
         <>
             <SEOHead
-                title="Refund and Cancellation Policy | Bichat"
-                description="Read our Refund and Cancellation Policy regarding transactions, cancellations, and returns on Bichat."
-                url="https://bichat-make-friendswith-bichat.netlify.app/refund-policy"
+                title="Refund and Cancellation Policy | BiChat"
+                description="Read our Refund and Cancellation Policy regarding transactions, cancellations, and returns on BiChat."
+                url="https://bi-chat.online/refund-policy"
             />
             <Box
                 sx={{
@@ -66,7 +66,7 @@ const RefundPolicyPage = () => {
                         <Divider sx={{ my: 6 }} />
 
                         <Typography variant="body2" color="text.secondary" align="center">
-                            © {new Date().getFullYear()} Bichat. All rights reserved.
+                            © {new Date().getFullYear()} BiChat. All rights reserved.
                         </Typography>
                     </Paper>
                 </Container>
@@ -76,3 +76,13 @@ const RefundPolicyPage = () => {
 };
 
 export default RefundPolicyPage;
+
+
+
+
+
+
+
+
+
+

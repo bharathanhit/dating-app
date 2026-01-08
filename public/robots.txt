@@ -19,4 +19,4 @@ Disallow: /api/
 Disallow: /admin/
 
 # Sitemap location
-Sitemap: https://bichat-make-friendswith-bichat.netlify.app/sitemap.xml
+Sitemap: https://bi-chat.online/sitemap.xml

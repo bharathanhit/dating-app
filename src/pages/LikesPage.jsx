@@ -125,8 +125,8 @@ const LikesPage = () => {
   return (
     <>
       <SEOHead
-        title="Likes | Bichat Dating"
-        description="See who you like and who likes you on Bichat"
+        title="Likes | BiChat Dating"
+        description="See who you like and who likes you on BiChat"
         noindex={true}
       />
       <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'background.default', minHeight: '80vh', maxWidth: 600, mx: 'auto' }}>

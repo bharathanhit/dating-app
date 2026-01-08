@@ -62,7 +62,8 @@ export const adminUnblockUser = async (userId) => {
 // Get user moderation stats
 export const getUserModerationStats = async (userId) => {
   try {
-    const userRef = doc(db, 'users', userId);
+  getUserModerationStats
+     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
     if (!userDoc.exists()) {
@@ -82,3 +83,20 @@ export const getUserModerationStats = async (userId) => {
     return null;
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

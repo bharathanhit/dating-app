@@ -162,7 +162,7 @@ const InstallPrompt = () => {
                 >
                     <Box>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                            📱 Install Bichat App
+                            📱 Install BiChat App
                         </Typography>
                         <Typography variant="caption" sx={{ opacity: 0.9 }}>
                             Get the full app experience with faster loading!
@@ -187,7 +187,7 @@ const InstallPrompt = () => {
                     gap: 1
                 }}>
                     {isIOS ? <Apple /> : <Android />}
-                    Install Bichat App
+                    Install BiChat App
                 </DialogTitle>
                 <DialogContent sx={{ mt: 2 }}>
                     {isIOS ? (

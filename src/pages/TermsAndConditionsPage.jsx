@@ -5,9 +5,9 @@ const TermsAndConditionsPage = () => {
     return (
         <>
             <SEOHead
-                title="Terms and Conditions | Bichat"
-                description="Read our Terms and Conditions regarding your use of the Bichat platform."
-                url="https://bichat-make-friendswith-bichat.netlify.app/terms"
+                title="Terms and Conditions | BiChat"
+                description="Read our Terms and Conditions regarding your use of the BiChat platform."
+                url="https://bi-chat.online/terms"
             />
             <Box
                 sx={{
@@ -155,7 +155,7 @@ const TermsAndConditionsPage = () => {
                         <Divider sx={{ my: 6 }} />
 
                         <Typography variant="body2" color="text.secondary" align="center">
-                            © {new Date().getFullYear()} Bichat. All rights reserved.
+                            © {new Date().getFullYear()} BiChat. All rights reserved.
                         </Typography>
                     </Paper>
                 </Container>

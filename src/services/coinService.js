@@ -145,7 +145,7 @@ export const checkDailyLoginReward = async (userId) => {
     
     if (!userDoc.exists()) {
       console.error('[coinService] User not found for daily login reward');
-      return { awarded: false, coins: 0 };
+      return { awarded: false, coins: 0 };z
     }
     
     const userData = userDoc.data();
@@ -169,7 +169,7 @@ export const checkDailyLoginReward = async (userId) => {
     }
     
     // Award daily login bonus
-    // const DAILY_LOGIN_REWARD = 25;
+    // const DAILY_LOGIN_REWARD = 20;
     // await addCoins(userId, DAILY_LOGIN_REWARD, 'daily_login');
     
     // Update last login date (still useful for tracking activity)

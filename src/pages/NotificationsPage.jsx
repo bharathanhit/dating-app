@@ -73,7 +73,7 @@ const NotificationsPage = () => {
     return (
         <>
             <SEOHead
-                title="Notifications | Bichat Dating"
+                title="Notifications | BiChat Dating"
                 description="Your notifications"
                 noindex={true}
             />

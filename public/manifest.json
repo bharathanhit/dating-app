@@ -1,7 +1,7 @@
 {
-    "name": "Bichat - Dating App",
-    "short_name": "Bichat",
-    "description": "Find your perfect match on Bichat. Browse profiles, chat with matches, and discover meaningful connections.",
+    "name": "BiChat - Modern Dating App",
+    "short_name": "BiChat",
+    "description": "Find your perfect match on BiChat. Browse profiles, chat with matches, and discover meaningful connections safely.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",

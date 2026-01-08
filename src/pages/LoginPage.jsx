@@ -55,10 +55,10 @@ const LoginPage = () => {
   return (
     <>
       <SEOHead
-        title="Login to Bichat | Find Your Perfect Match"
-        description="Sign in to your Bichat account to browse profiles, chat with matches, and find meaningful connections."
-        keywords="login, sign in, dating app login, Bichat login"
-        url="https://bichat-make-friendswith-bichat.netlify.app/login"
+        title="Login to BiChat | Find Your Perfect Match"
+        description="Sign in to your BiChat account to browse profiles, chat with matches, and find meaningful connections."
+        keywords="login, sign in, dating app login, BiChat login"
+        url="https://bi-chat.online/login"
       />
       <Container maxWidth="sm" sx={{ pb: { xs: 12, sm: 10 } }}>
         <Paper

@@ -58,10 +58,10 @@ const SignUpPage = () => {
   return (
     <>
       <SEOHead
-        title="Sign Up for Bichat | Start Your Dating Journey"
-        description="Create your free Bichat account today. Join thousands of singles looking for meaningful connections and find your perfect match."
-        keywords="sign up, create account, join dating app, register, Bichat signup"
-        url="https://bichat-make-friendswith-bichat.netlify.app/signup"
+        title="Sign Up for BiChat | Start Your Dating Journey"
+        description="Create your free BiChat account today. Join thousands of singles looking for meaningful connections and find your perfect match."
+        keywords="sign up, create account, join dating app, register, BiChat signup"
+        url="https://bi-chat.online/signup"
       />
       <Container maxWidth="sm" sx={{ pb: { xs: 12, sm: 10 } }}>
         <Paper

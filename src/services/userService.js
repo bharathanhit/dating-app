@@ -523,7 +523,7 @@ const createWarningNotification = async (userId, type, count, severity) => {
       emoji = '⚠️';
       if (type === 'report') {
         title = 'Multiple Reports Received';
-        message = `You have been reported by multiple users (${count} reports) for violating community guidelines.\n\nContinued violations may result in:\n• Temporary account suspension\n• Permanent ban from Bichat\n\nPlease review our Terms and Conditions.`;
+        message = `You have been reported by multiple users (${count} reports) for violating community guidelines.\n\nContinued violations may result in:\n• Temporary account suspension\n• Permanent ban from BiChat\n\nPlease review our Terms and Conditions.`;
       } else {
         title = 'Multiple Users Have Blocked You';
         message = `Multiple users (${count}) have blocked you. This may indicate behavior that violates our community guidelines.\n\nPlease ensure you:\n• Respect other users\n• Follow community guidelines\n• Maintain appropriate conduct\n\nContinued issues may result in account restrictions.`;
@@ -534,7 +534,7 @@ const createWarningNotification = async (userId, type, count, severity) => {
       if (type === 'report') {
         message = `Your account has received ${count} reports from other users. This is a serious violation of our community guidelines.\n\nImmediate action required:\n• Review our Terms and Conditions\n• Correct your behavior\n• Respect community standards\n\nFailure to comply will result in account suspension.`;
       } else {
-        message = `${count} users have blocked you. This indicates serious concerns about your behavior on Bichat.\n\nYour account is under review. Please:\n• Review our community guidelines\n• Ensure respectful interactions\n• Maintain appropriate conduct\n\nFurther violations will result in permanent ban.`;
+        message = `${count} users have blocked you. This indicates serious concerns about your behavior on BiChat.\n\nYour account is under review. Please:\n• Review our community guidelines\n• Ensure respectful interactions\n• Maintain appropriate conduct\n\nFurther violations will result in permanent ban.`;
       }
     } else { // critical
       emoji = '🔴';
