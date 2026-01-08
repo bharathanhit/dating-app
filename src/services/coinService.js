@@ -73,65 +73,28 @@ export const addCoins = async (userId, amount, reason = 'manual') => {
 };
 
 /**
- * Deduct coins from user's balance with validation
+ * SECURE: Deduct coins from user's balance using Cloud Functions
  * @param {string} userId - User ID
  * @param {number} amount - Amount of coins to deduct
- * @param {string} reason - Reason for deducting coins (e.g., 'like', 'message')
+ * @param {string} reason - Reason for deducting coins
  * @returns {Promise<boolean>} Success status
  */
 export const deductCoins = async (userId, amount, reason = 'manual') => {
   try {
-    const userDocRef = doc(db, 'users', userId);
+    const deductCoinsFn = httpsCallable(functions, 'deductCoins');
+    const result = await deductCoinsFn({ amount, reason });
     
-    // Use transaction to ensure atomic update and prevent negative balance
-    const result = await runTransaction(db, async (transaction) => {
-      const userDoc = await transaction.get(userDocRef);
-      
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-      
-      const currentCoins = userDoc.data().coins || 0;
-      
-      // Check if user has enough coins
-      if (currentCoins < amount) {
-        return { success: false, error: 'Insufficient coins' };
-      }
-      
-      const newBalance = currentCoins - amount;
-      
-      // Update user's coin balance
-      transaction.update(userDocRef, {
-        coins: newBalance,
-        updatedAt: serverTimestamp()
-      });
-      
-      // Log transaction
-      const transactionRef = doc(collection(db, 'users', userId, 'coinTransactions'));
-      transaction.set(transactionRef, {
-        type: 'debit',
-        amount: amount,
-        reason: reason,
-        balanceBefore: currentCoins,
-        balanceAfter: newBalance,
-        createdAt: serverTimestamp()
-      });
-      
-      return { success: true };
-    });
-    
-    if (!result.success) {
-      console.warn(`[coinService] Failed to deduct coins: ${result.error}`);
-      return false;
+    if (result.data && result.data.success) {
+      console.log(`[coinService] Securely deducted ${amount} coins (reason: ${reason})`);
+      return true;
     }
-    
-    console.log(`[coinService] Deducted ${amount} coins from user ${userId} (reason: ${reason})`);
-    return true;
+    return false;
   } catch (error) {
-    console.error('Error deducting coins:', error);
-    throw error;
+    console.error('Error securely deducting coins:', error);
+    return false;
   }
 };
+
 
 /**
  * Check if user is eligible for daily login reward and award if applicable

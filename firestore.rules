@@ -5,7 +5,7 @@ service cloud.firestore {
     // 1. Users & Liked Profiles
     match /users/{userId} {
       allow read: if true;
-      allow write: if true; // DEBUG: Force open to test Ban functionality
+      allow write: if request.auth != null && request.auth.uid == userId;
 
       match /likedProfiles/{profileId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -16,10 +16,10 @@ service cloud.firestore {
         allow write: if request.auth != null && request.auth.uid == sourceUid;
       }
       
-      // Coin transactions subcollection
+      // Coin transactions subcollection (Read only for users, write only for system/functions)
       match /coinTransactions/{transactionId} {
         allow read: if request.auth != null && request.auth.uid == userId;
-        allow write: if request.auth != null && request.auth.uid == userId;
+        allow write: if false; // Only Cloud Functions should write here
       }
       
       // Blocked users subcollection

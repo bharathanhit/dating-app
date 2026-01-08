@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Card, CardContent, Button, Grid, Paper, Divider, CircularProgress, Alert, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { MonetizationOn, CheckCircle, History, Stars } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../config/firebase';
 import { getCoinTransactions } from '../services/coinService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -104,25 +106,10 @@ const CoinsPage = () => {
         if (urlPaymentId) {
             handleAutoVerify(urlPaymentId);
         } else {
-            // Fallback: Check local storage for pending purchase and simulate if user claims they paid
-            const storedPkg = localStorage.getItem('pendingCoinPurchase');
-            if (storedPkg) {
-                const pkg = JSON.parse(storedPkg);
-                // DIRECTLY ADD COINS FOR TESTING without confirmation
-                import('../services/coinService').then(module => {
-                    module.addCoins(user.uid, pkg.amount, `manual_test_${Date.now()}`).then(() => {
-                        setCreditedAmount(pkg.amount);
-                        setShowPop(true);
-                        setTimeout(() => setShowPop(false), 3000);
-                        setSnackbar({ open: true, message: `Successfully Claimed ${pkg.amount} Coins!`, severity: 'success' });
-                        localStorage.removeItem('pendingCoinPurchase');
-                    });
-                });
-            } else {
-                setSnackbar({ open: true, message: 'No pending purchase found to claim.', severity: 'warning' });
-            }
+            setSnackbar({ open: true, message: 'No pending purchase found to claim. Please complete a payment first.', severity: 'warning' });
         }
     };
+
 
     const handleAutoVerify = async (paymentId) => {
         setVerifying(true);
@@ -142,23 +129,16 @@ const CoinsPage = () => {
 
             console.log('Verifying payment:', paymentId, 'for package:', packageId);
 
-            // const functions = getFunctions();
-            // // Call the functionality to verify securely on backend
-            // const verifyPayment = httpsCallable(functions, 'verifyInstamojoPayment');
+            const verifyPayment = httpsCallable(functions, 'verifyInstamojoPayment');
 
-            // const result = await verifyPayment({
-            //     paymentId: paymentId,
-            //     packageId: packageId
-            // });
-
-            // INSECURE FRONTEND VERIFICATION FOR TESTING
-            // Because backend functions are not deployed, we credit coins directly here.
-            // This relies on firestore.rules allowing users to write to their own coin balance.
-            await import('../services/coinService').then(module => {
-                module.addCoins(user.uid, amount, `purchase_test_${packageId || 'unknown'}`);
+            const result = await verifyPayment({
+                paymentId: paymentId,
+                packageId: packageId
             });
 
-            const result = { success: true };
+            if (!result.data || !result.data.success) {
+                throw new Error(result.data?.error || "Verification failed");
+            }
 
             // If we reach here, verification was successful
             setCreditedAmount(amount || 0);
@@ -213,40 +193,17 @@ const CoinsPage = () => {
                 timestamp: Date.now()
             }));
 
-            // 2. CHECK ENVIRONMENT: Localhost cannot use Netlify Functions directly without 'netlify dev'
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            // 3. Call Firebase Cloud Function (Secure & Dedicated)
+            const createPayment = httpsCallable(functions, 'createInstamojoPayment');
 
-            if (isLocalhost) {
-                console.warn("Localhost detected: Netlify Functions require 'netlify dev'. Falling back to static link or simulation.");
-                if (pkg.paymentLink) {
-                    window.location.href = pkg.paymentLink;
-                    return;
-                } else {
-                    alert("On localhost, dynamic payments require 'netlify dev'. Please test on the deployed site.");
-                    setLoading(false);
-                    return;
-                }
-            }
-
-            // 3. Call Netlify Function (Production / Deployed)
-            const response = await fetch('/.netlify/functions/create_payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ packageId: pkg.id })
+            const result = await createPayment({
+                packageId: pkg.id
             });
 
-            // Handle non-JSON response (e.g., HTML error page)
-            const contentType = response.headers.get("content-type");
-            if (!contentType || !contentType.includes("application/json")) {
-                throw new Error("Received non-JSON response from server. Service might be unavailable.");
-            }
-
-            const data = await response.json();
-
-            if (response.ok && data.paymentUrl) {
-                window.location.href = data.paymentUrl;
+            if (result.data && result.data.paymentUrl) {
+                window.location.href = result.data.paymentUrl;
             } else {
-                throw new Error(data.error || "Failed to create payment link");
+                throw new Error(result.data?.error || "Failed to create payment link");
             }
 
         } catch (error) {

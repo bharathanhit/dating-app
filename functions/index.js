@@ -675,3 +675,61 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
   }
 });
 
+// SECURE COIN MANAGEMENT
+/**
+ * Deduct coins from user balance securely on server side
+ * @param {Object} data - { amount, reason }
+ * @param {Object} context - Firebase context
+ */
+exports.deductCoins = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+  }
+
+  const { amount, reason } = data;
+  const userId = context.auth.uid;
+
+  if (!amount || amount <= 0) {
+    throw new functions.https.HttpsError("invalid-argument", "Valid amount required.");
+  }
+
+  const userRef = admin.firestore().collection("users").doc(userId);
+
+  try {
+    return await admin.firestore().runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError("not-found", "User not found.");
+      }
+
+      const currentCoins = userDoc.data().coins || 0;
+      if (currentCoins < amount) {
+        throw new functions.https.HttpsError("failed-precondition", "Insufficient coins.");
+      }
+
+      const newBalance = currentCoins - amount;
+      transaction.update(userRef, { 
+        coins: newBalance,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      const txRef = userRef.collection("coinTransactions").doc();
+      transaction.set(txRef, {
+        type: "debit",
+        amount: amount,
+        reason: reason || "manual",
+        balanceBefore: currentCoins,
+        balanceAfter: newBalance,
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return { success: true, newBalance };
+    });
+  } catch (error) {
+    console.error("DeductCoins Error:", error);
+    if (error instanceof functions.https.HttpsError) throw error;
+    throw new functions.https.HttpsError("internal", error.message);
+  }
+});
+
+
