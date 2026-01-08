@@ -459,7 +459,7 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
     payload.append('buyer_name', userName);
     payload.append('email', userEmail);
     payload.append('redirect_url', redirectUrl);
-    payload.append('allow_repeated_payments', 'false');
+    payload.append('allow_repeated_payments', 'False');
 
     const response = await axios.post(
       `${INSTAMOJO_API_ENDPOINT}/payment_requests/`,
@@ -483,7 +483,8 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
     if (error.response) {
          console.error("[CREATE_PAYMENT] API Response:", error.response.data);
     }
-    throw new functions.https.HttpsError("internal", "Unable to create payment link.");
+    const errorMessage = error.response?.data?.message || error.message || "Unable to create payment link.";
+    throw new functions.https.HttpsError("internal", errorMessage);
   }
 });
 
