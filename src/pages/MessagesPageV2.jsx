@@ -30,34 +30,48 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { useAuth } from "../context/AuthContext";
 import { deductCoins } from '../services/coinService';
-import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
 import {
-  listenForMessagesRealtime,
-  sendMessageRealtime,
+  getOrCreateConversation,
+  listenForConversations,
+  listenForMessages,
+  sendMessage,
   markMessagesAsRead,
   setUserOnline,
-  setUserOffline
-} from "../services/chatRealtimeService";
+  setUserOffline,
+  listenForUserStatus,
+  updateMessageAudioStatus,
+  setAudioTrust,
+  checkAudioTrust
+} from '../services/chatServiceV2';
 import { getUserProfile, getBlockedUsers, blockUser, unblockUser, isUserBlocked, reportUser } from "../services/userService";
-import { ref, onValue } from "firebase/database";
-import { realtimeDb } from "../config/firebase";
 import { getValidImageUrl } from "../utils/imageUtils";
 import SEOHead from "../components/SEOHead.jsx";
 import ReportDialog from "../components/ReportDialog";
 import { Mic, Stop, Check, Block, PlayArrow, Pause, Cancel, DeleteOutline } from "@mui/icons-material";
 import { convertBlobToBase64 } from "../services/storageService";
-import { updateMessageAudioStatus, setAudioTrust, checkAudioTrust } from "../services/chatRealtimeService";
 
 const IG_GRADIENT = "linear-gradient(135deg, #754bffff 0%, #7f0f98ff 100%)";
 
+const getMillis = (ts) => {
+  if (!ts) return 0;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (ts instanceof Date) return ts.getTime();
+  return 0;
+};
+
 const formatTime = (ts) => {
   if (!ts) return "";
-  const d = new Date(Number(ts));
+  const millis = getMillis(ts);
+  if (!millis) return "";
+  const d = new Date(millis);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
 const dateLabelFor = (ts) => {
-  const d = new Date(Number(ts));
+  const millis = getMillis(ts);
+  if (!millis) return "";
+  const d = new Date(millis);
   const now = new Date();
   const sameDay =
     d.getFullYear() === now.getFullYear() &&
@@ -153,18 +167,7 @@ const MessagesPageV2 = () => {
     }
   }, [messages]);
 
-  // Set user online status
-  useEffect(() => {
-    if (user?.uid) {
-      setUserOnline(user.uid);
-      const handleOffline = () => setUserOffline(user.uid);
-      window.addEventListener("beforeunload", handleOffline);
-      return () => {
-        setUserOffline(user.uid);
-        window.removeEventListener("beforeunload", handleOffline);
-      };
-    }
-  }, [user?.uid]);
+
 
   // Fetch blocked users
   useEffect(() => {
@@ -182,22 +185,33 @@ const MessagesPageV2 = () => {
   // Listen for conversations
   useEffect(() => {
     if (!user?.uid) return;
-
+    console.log('[MessagesPageV2] Setting up conversation listener for user:', user.uid);
     const unsubscribe = listenForConversations(user.uid, (convs) => {
+      console.log('[MessagesPageV2] Received conversations:', convs.length, convs);
       setConversations(convs);
-      // Fetch profiles for all participants in all conversations
+    });
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Fetch missing profiles for participants
+  useEffect(() => {
+    if (!conversations.length) return;
+
+    const fetchProfiles = async () => {
       const allParticipantIds = new Set();
-      convs.forEach((conv) => {
-        conv.participants.forEach((pId) => allParticipantIds.add(pId));
+      conversations.forEach((conv) => {
+        conv.participants.forEach((pId) => {
+          if (pId !== user?.uid) allParticipantIds.add(pId);
+        });
       });
-      allParticipantIds.forEach(async (pId) => {
+
+      for (const pId of allParticipantIds) {
         if (!profileMap[pId]) {
           try {
             const profile = await getUserProfile(pId);
             if (profile) {
               setProfileMap((prev) => ({ ...prev, [pId]: profile }));
             } else {
-              // Handle deleted/missing users so displayed skeleton stops
               setProfileMap((prev) => ({ ...prev, [pId]: { name: "User", image: null } }));
             }
           } catch (e) {
@@ -205,11 +219,11 @@ const MessagesPageV2 = () => {
             setProfileMap((prev) => ({ ...prev, [pId]: { name: "User", image: null } }));
           }
         }
-      });
-    });
+      }
+    };
 
-    return () => unsubscribe();
-  }, [user?.uid, profileMap]); // Added profileMap dependency to ensure we don't re-fetch knowns repeatedly, but need care. Actually removing profileMap from dep array is safer to avoid loops, but logic handles check. Ideally keep it simple.
+    fetchProfiles();
+  }, [conversations]); // Only re-run when conversation list changes
 
   // Check if other user in active conversation is blocked
   useEffect(() => {
@@ -285,7 +299,7 @@ const MessagesPageV2 = () => {
       return;
     }
 
-    const unsubscribe = listenForMessagesRealtime(activeConv.id, (newMessages) => {
+    const unsubscribe = listenForMessages(activeConv.id, (newMessages) => {
       setMessages(newMessages);
       // Mark messages as read when they are loaded
       if (user?.uid) {
@@ -316,9 +330,7 @@ const MessagesPageV2 = () => {
       return;
     }
 
-    const statusRef = ref(realtimeDb, `status/${otherUid}`);
-    const unsubscribe = onValue(statusRef, (snapshot) => {
-      const data = snapshot.val();
+    const unsubscribe = listenForUserStatus(otherUid, (data) => {
       setStatus(data);
     });
 
@@ -332,7 +344,17 @@ const MessagesPageV2 = () => {
   };
 
   const handleSend = async () => {
-    if (!text.trim() || !activeConv?.id || !user?.uid) return;
+    console.log('[MessagesPageV2] ========== handleSend START ==========');
+    const { auth } = await import('../config/firebase');
+    console.log('[MessagesPageV2] Firebase Auth State:', auth.currentUser ? `Logged in: ${auth.currentUser.uid}` : 'NOT LOGGED IN');
+    console.log('[MessagesPageV2] React Context User:', user?.uid || 'NO USER IN CONTEXT');
+    console.log('[MessagesPageV2] Active Conversation:', activeConv?.id || 'NO ACTIVE CONV');
+    console.log('[MessagesPageV2] Text to send:', text?.trim() || 'NO TEXT');
+
+    if (!text.trim() || !activeConv?.id || !user?.uid) {
+      console.warn('[MessagesPageV2] Validation failed - missing required data');
+      return;
+    }
 
     const payload = {
       senderId: user.uid,
@@ -341,15 +363,21 @@ const MessagesPageV2 = () => {
     };
 
     try {
+      console.log('[MessagesPageV2] Step 1: Checking if coin deduction needed...');
       // If not a random chat and it's the first message, deduct coins first
       if (!isRandomChat && messages.length === 0) {
+        console.log('[MessagesPageV2] Deducting 3 coins for first message...');
         const deducted = await deductCoins(user.uid, 3, 'message');
+        console.log('[MessagesPageV2] Coin deduction result:', deducted);
         if (!deducted) {
           alert('Insufficient coins to start conversation');
           return;
         }
+      } else {
+        console.log('[MessagesPageV2] Skipping coin deduction (isRandomChat:', isRandomChat, ', messages.length:', messages.length, ')');
       }
 
+      console.log('[MessagesPageV2] Step 2: Updating UI optimistically...');
       // optimistic UI
       setMessages((prev) => {
         const merged = [...prev, payload];
@@ -358,10 +386,26 @@ const MessagesPageV2 = () => {
       });
       setText("");
 
-      await sendMessageRealtime(activeConv.id, payload);
+      console.log('[MessagesPageV2] Step 3: Calling sendMessage service...');
+      await sendMessage(activeConv.id, payload);
+      console.log('[MessagesPageV2] ✓ Message sent successfully!');
+
+      // Check auth state AFTER sending
+      const { auth: authAfter } = await import('../config/firebase');
+      console.log('[MessagesPageV2] Auth state AFTER sendMessage:', authAfter.currentUser ? `Still logged in: ${authAfter.currentUser.uid}` : 'AUTH LOST!');
+
     } catch (err) {
-      console.error("sendMessageRealtime error:", err);
+      console.error("[MessagesPageV2] ✗ sendMessage error:", err);
+      console.error("[MessagesPageV2] Error code:", err.code);
+      console.error("[MessagesPageV2] Error message:", err.message);
+
+      // Check auth state on error
+      const { auth: authOnError } = await import('../config/firebase');
+      console.log('[MessagesPageV2] Auth state ON ERROR:', authOnError.currentUser ? `Still logged in: ${authOnError.currentUser.uid}` : 'AUTH LOST ON ERROR!');
+
+      alert("Failed to send message: " + err.message);
     }
+    console.log('[MessagesPageV2] ========== handleSend END ==========');
   };
 
   const handleMenuOpen = (event) => {
@@ -499,7 +543,7 @@ const MessagesPageV2 = () => {
         return merged;
       });
 
-      await sendMessageRealtime(activeConv.id, payload);
+      await sendMessage(activeConv.id, payload);
       console.log("Audio message sent successfully.");
 
       // Reset audio state after sending
@@ -614,18 +658,24 @@ const MessagesPageV2 = () => {
   // Build grouped messages by date for rendering
   const grouped = useMemo(() => {
     const sorted = Array.isArray(messages)
-      ? [...messages].sort((a, b) => (Number(a.createdAt || a.timestamp || 0) - Number(b.createdAt || b.timestamp || 0)))
+      ? [...messages].sort((a, b) => {
+        const tA = getMillis(a.createdAt ?? a.timestamp);
+        const tB = getMillis(b.createdAt ?? b.timestamp);
+        return tA - tB;
+      })
       : [];
     return groupMessagesByDate(sorted);
   }, [messages]);
 
-  // Filter conversations to exclude blocked users
+  // Filter conversations (Showing ALL, including blocked)
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
       const other = (c.participants || []).find((id) => id !== user?.uid);
-      return other && !blockedUsers.includes(other);
+      // We still want to ensure there is a valid 'other' participant for a 1-on-1 chat
+      // but we do NOT hide blocked users anymore.
+      return !!other;
     });
-  }, [conversations, blockedUsers, user?.uid]);
+  }, [conversations, user?.uid]);
 
   // header info: other profile
   const otherUid = activeConv ? (activeConv.participants || []).find((id) => id !== user?.uid) : null;
@@ -694,12 +744,15 @@ const MessagesPageV2 = () => {
                   {filteredConversations.map((c) => {
                     const other = (c.participants || []).find((id) => id !== user?.uid) || (c.participants || [])[0];
                     const prof = other ? profileMap[other] : null;
+                    const isBlocked = other && blockedUsers.includes(other);
+                    const lastMsgText = c.lastMessage?.text || (typeof c.lastMessage === 'string' ? c.lastMessage : '') || "No messages";
+
                     return (
                       <Box key={c.id}>
-                        <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2 }}>
+                        <ListItem button onClick={() => startWithUser(other)} sx={{ py: 1.25, px: 2, bgcolor: isBlocked ? 'rgba(0,0,0,0.02)' : 'inherit' }}>
                           <ListItemAvatar>
                             {prof ? (
-                              <Avatar src={getValidImageUrl(prof?.image)}>
+                              <Avatar src={getValidImageUrl(prof?.image)} sx={{ opacity: isBlocked ? 0.6 : 1 }}>
                                 {!getValidImageUrl(prof?.image) ? (prof?.name ? prof.name[0] : (other ? other[0] : "?")) : null}
                               </Avatar>
                             ) : (
@@ -707,9 +760,18 @@ const MessagesPageV2 = () => {
                             )}
                           </ListItemAvatar>
                           <ListItemText
-                            primary={prof ? (prof.name) : <Skeleton width="70%" animation="wave" sx={{ my: 0.5 }} />}
+                            primary={
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>{prof ? (prof.name) : <Skeleton width="70%" animation="wave" sx={{ my: 0.5 }} />}</span>
+                                {isBlocked && <Typography variant="caption" color="error" sx={{ fontWeight: 'bold' }}>BLOCKED</Typography>}
+                              </Box>
+                            }
                             primaryTypographyProps={{ color: "black", fontWeight: 500 }}
-                            secondary={prof ? (c.lastMessage || "") : <Skeleton width="40%" animation="wave" />}
+                            secondary={prof ? lastMsgText : <Skeleton width="40%" animation="wave" />}
+                            secondaryTypographyProps={{
+                              noWrap: true,
+                              sx: { color: isBlocked ? 'text.disabled' : 'text.secondary' }
+                            }}
                           />
                         </ListItem>
                         <Divider />
@@ -762,6 +824,16 @@ const MessagesPageV2 = () => {
                   </Box>
                 ) : (
                   <>
+                    {messages.length === 0 && (
+                      <Box sx={{ my: 3, p: 2.5, bgcolor: "rgba(117, 75, 255, 0.04)", borderRadius: 3, border: "1px dashed rgba(117, 75, 255, 0.2)", mx: "auto", maxWidth: "80%" }}>
+                        <Typography variant="subtitle2" sx={{ color: "#754bff", fontWeight: 600, mb: 0.5, textAlign: "center" }}>
+                          Start the Conversation! 👋
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", lineHeight: 1.5 }}>
+                          Keep it respectful, safe, and fun. Protect your personal information and never share financial details. By sending a message, you agree to our community guidelines.
+                        </Typography>
+                      </Box>
+                    )}
                     {grouped.map((g) => (
                       <Box key={g.label}>
                         {/* date separator above the group's messages */}

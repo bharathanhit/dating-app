@@ -22,7 +22,7 @@ import RefundPolicyPage from './pages/RefundPolicyPage.jsx';
 import TermsAndConditionsPage from './pages/TermsAndConditionsPage.jsx';
 import AdminUserList from './pages/AdminUserList.jsx';
 import LikeNotification from './components/LikeNotification.jsx';
-import InstallPrompt from './components/InstallPrompt.jsx';
+// import InstallPrompt from './components/InstallPrompt.jsx';
 import { useSetOnlineStatus } from './hooks/useOnlineStatus.js';
 import { useAuth } from './context/AuthContext.jsx';
 import './App.css';
@@ -57,7 +57,7 @@ const AppContent = () => {
   return (
     <Router>
       <LikeNotification />
-      <InstallPrompt />
+      {/* <InstallPrompt /> */}
       <div className="app">
         <Navbar />
         <main className="main-content">

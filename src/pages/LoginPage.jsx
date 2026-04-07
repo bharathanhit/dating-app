@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert, Divider } from '@mui/material';
+import { Container, TextField, Button, Typography, Box, Paper, CircularProgress, Alert, Divider, FormControlLabel, Checkbox } from '@mui/material';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import GoogleSignInButton from '../components/GoogleSignInButton.jsx';
@@ -10,6 +10,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const navigate = useNavigate();
   const { login, user } = useAuth();
   const location = useLocation();
@@ -29,6 +30,12 @@ const LoginPage = () => {
     try {
       if (!email || !password) {
         setError('Please fill in all fields');
+        setLoading(false);
+        return;
+      }
+
+      if (!acceptedTerms) {
+        setError('Please accept the Privacy Policy and Terms and Conditions to continue');
         setLoading(false);
         return;
       }
@@ -86,7 +93,7 @@ const LoginPage = () => {
 
           {/* Google Sign In Button */}
           <Box sx={{ mb: 3, mt: 3 }}>
-            <GoogleSignInButton variant="outlined" fullWidth={true} />
+            <GoogleSignInButton variant="outlined" fullWidth={true} acceptanceRequired={!acceptedTerms} />
           </Box>
 
           <Divider sx={{ my: 3 }}>OR</Divider>
@@ -128,12 +135,32 @@ const LoginPage = () => {
                 },
               }}
             />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.85rem' } }}>
+                  I have read and agree to the{' '}
+                  <Link to="/privacy" target="_blank" style={{ color: '#1976d2', textDecoration: 'none' }}>Privacy Policy</Link>
+                  {' '}and{' '}
+                  <Link to="/terms" target="_blank" style={{ color: '#1976d2', textDecoration: 'none' }}>Terms and Conditions</Link>
+                </Typography>
+              }
+              sx={{ mt: 1, mb: 1, alignItems: 'flex-start' }}
+            />
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{
-                mt: 3,
+                mt: 1,
                 mb: 2,
                 py: { xs: 1, sm: 1.5 },
                 fontSize: { xs: '0.9rem', sm: '1rem' },

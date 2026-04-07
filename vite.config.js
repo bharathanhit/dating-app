@@ -6,19 +6,19 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   publicDir: 'public', // Explicitly set public directory
+  resolve: {
+    alias: {
+      react: 'c:/Users/abhar/Desktop/BICHAT/node_modules/react',
+      'react-dom': 'c:/Users/abhar/Desktop/BICHAT/node_modules/react-dom',
+    },
+  },
   server: {
     hmr: {
       host: 'localhost',
     },
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'], // Separate vendor libraries
-        },
-      },
-    },
-    chunkSizeWarningLimit: 1000, // Set limit to 1000 kB
+    // manualChunks removed to prevent duplication issues
+    chunkSizeWarningLimit: 1000,
   },
 })

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   Box,
@@ -48,15 +48,13 @@ const LOOKING_FOR_OPTIONS = [
 ];
 
 export default function OnboardingPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, profile, isProfileComplete, refreshProfile } = useAuth();
   const navigate = useNavigate();
+
   const [activeStep, setActiveStep] = useState(0);
-  // Multi-image state
   const [imageFiles, setImageFiles] = useState([]); // Array of File objects
   const [imagePreviews, setImagePreviews] = useState([]); // Array of blob URLs
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
-
-  // Cropper State
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [tempCropImage, setTempCropImage] = useState(null);
   const [originalFileName, setOriginalFileName] = useState('profile-image.jpg');
@@ -72,6 +70,42 @@ export default function OnboardingPage() {
     district: "",
     bio: "",
   });
+
+  // Sync profile data into form when loaded
+  useEffect(() => {
+    if (profile) {
+      setFormData(prev => ({
+        ...prev,
+        name: profile.name || user?.displayName || "",
+        gender: profile.gender || "",
+        lookingFor: profile.lookingFor || "",
+        interests: profile.interests || [],
+        birthDate: profile.birthDate || "",
+        district: profile.district || "",
+        bio: profile.bio || "",
+      }));
+      
+      // Load existing images if any
+      if (profile.images && profile.images.length > 0) {
+        setImagePreviews(profile.images);
+      } else if (profile.image) {
+        setImagePreviews([profile.image]);
+      }
+    } else if (user) {
+      // Fallback to Google data if no Firestore doc exists yet
+      setFormData(prev => ({
+        ...prev,
+        name: user.displayName || "",
+      }));
+    }
+  }, [profile, user]);
+
+  useEffect(() => {
+    // Rely on the lenient check from AuthContext to decide when to skip onboarding
+    if (isProfileComplete) {
+      navigate('/');
+    }
+  }, [isProfileComplete, navigate]);
 
   const TAMIL_NADU_DISTRICTS = [
     'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur',

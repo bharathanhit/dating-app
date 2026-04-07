@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
+import { listenForUserStatus, setUserOnline, setUserOffline } from '../services/chatServiceV2';
 
 /**
- * Custom hook to listen to a user's online status
+ * Custom hook to listen to a user's online status (Firestore version)
  * @param {string} userId - The user ID to monitor
  * @returns {Object} - { online: boolean, lastSeen: timestamp }
  */
@@ -16,19 +15,20 @@ export const useOnlineStatus = (userId) => {
       return;
     }
 
-    const statusRef = ref(realtimeDb, `status/${userId}`);
-    const unsubscribe = onValue(statusRef, (snap) => {
-      setStatus(snap.val());
+    const unsub = listenForUserStatus(userId, (newStatus) => {
+      setStatus(newStatus);
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
   }, [userId]);
 
   return status;
 };
 
 /**
- * Custom hook to listen to multiple users' online statuses
+ * Custom hook to listen to multiple users' online statuses (Firestore version)
  * @param {string[]} userIds - Array of user IDs to monitor
  * @returns {Object} - Object mapping userId to { online: boolean, lastSeen: timestamp }
  */
@@ -46,9 +46,7 @@ export const useMultipleOnlineStatuses = (userIds) => {
     userIds.forEach((userId) => {
       if (!userId) return;
 
-      const statusRef = ref(realtimeDb, `status/${userId}`);
-      const unsubscribe = onValue(statusRef, (snap) => {
-        const status = snap.val();
+      const unsubscribe = listenForUserStatus(userId, (status) => {
         setStatuses((prev) => ({
           ...prev,
           [userId]: status,
@@ -59,7 +57,9 @@ export const useMultipleOnlineStatuses = (userIds) => {
     });
 
     return () => {
-      unsubscribers.forEach((unsub) => unsub());
+      unsubscribers.forEach((unsub) => {
+        if (typeof unsub === 'function') unsub();
+      });
     };
   }, [JSON.stringify(userIds)]); // Use JSON.stringify for array comparison
 
@@ -67,62 +67,36 @@ export const useMultipleOnlineStatuses = (userIds) => {
 };
 
 /**
- * Custom hook to set current user's online status
- * Uses Firebase's built-in presence system for reliability
+ * Custom hook to set current user's online status (Firestore version)
  * @param {string} userId - Current user's ID
  */
 export const useSetOnlineStatus = (userId) => {
   useEffect(() => {
     if (!userId) return;
 
-    let isActive = true;
+    // Set online
+    setUserOnline(userId);
 
-    // Import Firebase Database functions
-    import('firebase/database').then(async ({ set, onValue, onDisconnect, serverTimestamp, ref: dbRef }) => {
-      if (!isActive) return;
+    const handleBeforeUnload = () => {
+      setUserOffline(userId);
+    };
 
-      const myStatusRef = dbRef(realtimeDb, `status/${userId}`);
-      const connectedRef = dbRef(realtimeDb, '.info/connected');
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setUserOnline(userId);
+      } else {
+        setUserOffline(userId);
+      }
+    };
 
-      // Monitor connection state
-      const unsubscribe = onValue(connectedRef, async (snapshot) => {
-        if (!isActive) return;
-        
-        if (snapshot.val() === true) {
-          // We're connected (or reconnected)
-          console.log(`[useSetOnlineStatus] User ${userId} connected`);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-          // Set up onDisconnect handler first
-          const disconnectRef = onDisconnect(myStatusRef);
-          await disconnectRef.set({
-            online: false,
-            lastSeen: serverTimestamp(),
-          });
-
-          // Then set ourselves as online
-          await set(myStatusRef, {
-            online: true,
-            lastSeen: serverTimestamp(),
-          });
-        }
-      });
-
-      // Cleanup function
-      return () => {
-        isActive = false;
-        unsubscribe();
-        
-        // Set offline when component unmounts
-        set(myStatusRef, {
-          online: false,
-          lastSeen: serverTimestamp(),
-        }).catch(err => console.error('Error setting offline status:', err));
-      };
-    });
-
-    // Cleanup
     return () => {
-      isActive = false;
+      setUserOffline(userId);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [userId]);
 };
+

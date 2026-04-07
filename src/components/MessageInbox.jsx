@@ -1,4 +1,4 @@
- // MessagesPage.jsx
+// MessagesPage.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
@@ -19,12 +19,9 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useAuth } from '../context/AuthContext';
-import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
-import { sendMessageRealtime, listenForMessagesRealtime } from '../services/chatRealtimeService';
+import { getOrCreateConversation, listenForConversations, listenForMessages, sendMessage, listenForUserStatus } from '../services/chatServiceV2';
 import { getUserProfile } from '../services/userService';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
 
 const MOBILE_BREAKPOINT = 900; // px. <900 = mobile single-pane behavior
 
@@ -107,22 +104,13 @@ const MessagesPage = () => {
     let unsubMessages;
 
     try {
-      unsubMessages = listenForMessagesRealtime(activeConv.id, (msg) => {
-        if (!msg) return;
-
-        if (msg.timestamp == null) {
-          msg.timestamp = Date.now();
-        }
-
-        localMessages.push(msg);
-        localMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-        setMessages([...localMessages]);
-
+      unsubMessages = listenForMessages(activeConv.id, (msgList) => {
+        // Since listenForMessages returns the whole list, we set it directly
+        setMessages(msgList);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       });
     } catch (err) {
-      console.error('listenForMessagesRealtime threw:', err);
+      console.error('listenForMessages threw:', err);
     }
 
     return () => {
@@ -134,13 +122,11 @@ const MessagesPage = () => {
   useEffect(() => {
     if (!receiver?.uid) return;
 
-    const statusRef = ref(realtimeDb, `status/${receiver.uid}`);
-    const off = onValue(statusRef, (snap) => {
-      setStatus(snap.val());
+    const unsub = listenForUserStatus(receiver.uid, (data) => {
+      setStatus(data);
     });
-    // onValue in v9 returns an unsubscribe function in many wrappers — safe to attempt cleanup
     return () => {
-      try { if (typeof off === 'function') off(); } catch (e) { /* ignore */ }
+      if (typeof unsub === 'function') unsub();
     };
   }, [receiver]);
 
@@ -197,11 +183,11 @@ const MessagesPage = () => {
     };
 
     try {
-      await sendMessageRealtime(activeConv.id, payload);
+      await sendMessage(activeConv.id, payload);
       setText('');
       setError('');
     } catch (err) {
-      console.error('sendMessageRealtime error:', err);
+      console.error('sendMessage error:', err);
       setError('Failed to send message: ' + (err?.message || err));
     }
   };

@@ -5,7 +5,6 @@
                 "messages": {
                     ".read": "auth != null",
                     "$messageId": {
-                        // Changed to allow auth != null so recipients can mark messages as read
                         ".write": "auth != null",
                         ".validate": "newData.hasChildren(['text', 'senderId', 'createdAt'])"
                     }

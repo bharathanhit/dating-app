@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const GoogleSignInButton = ({ variant = 'contained', fullWidth = false }) => {
+const GoogleSignInButton = ({ variant = 'contained', fullWidth = false, acceptanceRequired = false }) => {
   const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,8 +16,13 @@ const GoogleSignInButton = ({ variant = 'contained', fullWidth = false }) => {
     setLoading(true);
 
     try {
+      if (acceptanceRequired) {
+        setError('Please accept the Privacy Policy and Terms and Conditions');
+        setLoading(false);
+        return;
+      }
       await signInWithGoogle();
-      const from = location.state?.from || '/onboarding';
+      const from = location.state?.from || '/';
       navigate(from);
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');

@@ -26,10 +26,10 @@ import { getAllUserProfiles } from '../services/userService';
 import { adminBlockUser, adminUnblockUser } from '../services/userService_admin';
 import { useAuth } from '../context/AuthContext';
 import { signInWithEmailAndPassword } from 'firebase/auth'; // Import Email Sign-in
-import { auth } from '../config/firebase'; // Import auth instance
+import { auth, db } from '../config/firebase'; // Import auth instance
 import SEOHead from '../components/SEOHead';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase.js';
+import { listenForAllOnlineUsers, setUserOffline } from '../services/chatServiceV2';
+import { collection, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 
 const AdminUserList = () => {
@@ -178,27 +178,12 @@ const AdminUserList = () => {
         }
     }, [isAdminAuthenticated]);
 
-    // Subscribe to online status
+    // Subscribe to online status (Firestore)
     useEffect(() => {
         if (!isAdminAuthenticated) return;
 
-        const statusRef = ref(realtimeDb, 'status');
-        const unsubscribe = onValue(statusRef, (snapshot) => {
-            const data = snapshot.val();
-            console.log("[AdminUserList] Raw RTDB Status Data:", data);
-            if (data) {
-                // Convert { uid: {online: true, ...} } to { uid: true/false }
-                const onlineMap = {};
-                Object.keys(data).forEach(uid => {
-                    // Check strict equality to true
-                    const isUserOnline = data[uid]?.online === true;
-                    onlineMap[uid] = isUserOnline;
-                });
-                console.log("[AdminUserList] Processed Online Map:", onlineMap);
-                setOnlineUsers(onlineMap);
-            } else {
-                setOnlineUsers({});
-            }
+        const unsubscribe = listenForAllOnlineUsers((onlineMap) => {
+            setOnlineUsers(onlineMap);
         });
 
         return () => unsubscribe();
@@ -319,32 +304,29 @@ const AdminUserList = () => {
                             color="warning"
                             size="small"
                             onClick={async () => {
-                                if (window.confirm("This will reset ALL user online statuses to offline. Useful if data is stale. Continue?")) {
+                                if (window.confirm("This will reset ALL active user online statuses to offline in Firestore. Continue?")) {
                                     try {
-                                        const { ref, set, get, remove } = await import('firebase/database');
-                                        const statusRef = ref(realtimeDb, 'status');
+                                        const usersCol = collection(db, 'users');
+                                        const q = query(usersCol, where('status.online', '==', true));
+                                        const snapshot = await getDocs(q);
 
-                                        // Try bulk delete first
-                                        try {
-                                            await remove(statusRef);
-                                            alert("Online statuses reset (Bulk Delete Success).");
-                                            return;
-                                        } catch (bulkError) {
-                                            console.warn("Bulk delete failed, trying individual...", bulkError);
-                                        }
-
-                                        // Fallback to individual delete
-                                        const snapshot = await get(statusRef);
-                                        if (snapshot.exists()) {
-                                            const updates = {};
-                                            snapshot.forEach(child => {
-                                                updates[child.key] = null;
-                                            });
-                                            await set(statusRef, updates); // Try multi-path update
-                                            alert("Online statuses reset (Multi-path Update Success).");
-                                        } else {
+                                        if (snapshot.empty) {
                                             alert("No online users found to reset.");
+                                            return;
                                         }
+
+                                        const batch = writeBatch(db);
+                                        snapshot.docs.forEach((userDoc) => {
+                                            batch.update(userDoc.ref, {
+                                                'status.online': false,
+                                                'status.lastSeen': Date.now(),
+                                                'status.updatedAt': serverTimestamp()
+                                            });
+                                        });
+
+                                        await batch.commit();
+                                        alert(`Successfully reset ${snapshot.size} users to offline.`);
+                                        fetchUsers();
                                     } catch (e) {
                                         console.error(e);
                                         alert("Failed to reset: " + e.message);

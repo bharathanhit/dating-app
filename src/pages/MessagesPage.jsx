@@ -20,19 +20,19 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useAuth } from "../context/AuthContext";
-import { getOrCreateConversation, listenForConversations } from "../services/chatServiceV2";
 import {
-  listenForMessagesRealtime,
-  sendMessageRealtime,
+  getOrCreateConversation,
+  listenForConversations,
+  listenForMessages,
+  sendMessage,
   setTypingStatus,
   listenForTyping,
   markMessagesAsRead,
   setUserOnline,
-  setUserOffline
-} from "../services/chatRealtimeService";
+  setUserOffline,
+  listenForUserStatus
+} from "../services/chatServiceV2";
 import { getUserProfile } from "../services/userService";
-import { ref, onValue } from "firebase/database";
-import { realtimeDb } from "../config/firebase";
 
 const IG_GRADIENT = "linear-gradient(135deg,#8e2de2 0%,#4a00e0 50%,#ff5fa2 100%)";
 
@@ -168,7 +168,7 @@ const MessagesPage = () => {
     let unsubMessages;
     try {
       console.log('[MessagesPage] Setting up message listener for:', convId);
-      unsubMessages = listenForMessagesRealtime(convId, (messagesArray) => {
+      unsubMessages = listenForMessages(convId, (messagesArray) => {
         console.log('[MessagesPage] Received messages update:', messagesArray.length);
 
         // Set messages directly from the listener (already sorted by service)
@@ -184,7 +184,7 @@ const MessagesPage = () => {
         });
       });
     } catch (err) {
-      console.error('[MessagesPage] listenForMessagesRealtime threw:', err);
+      console.error('[MessagesPage] listenForMessages threw:', err);
     }
 
     return () => {
@@ -198,14 +198,11 @@ const MessagesPage = () => {
     if (!activeConv) return;
     const other = (activeConv.participants || []).find((id) => id !== user?.uid);
     if (!other) return;
-    const statusRef = ref(realtimeDb, `status/${other}`);
-    const off = onValue(statusRef, (snap) => {
-      setStatus(snap.val());
+    const unsub = listenForUserStatus(other, (data) => {
+      setStatus(data);
     });
     return () => {
-      try {
-        if (typeof off === "function") off();
-      } catch { }
+      if (typeof unsub === "function") unsub();
     };
   }, [activeConv, user]);
 
@@ -255,9 +252,9 @@ const MessagesPage = () => {
       });
       setText("");
 
-      await sendMessageRealtime(activeConv.id, payload);
+      await sendMessage(activeConv.id, payload);
     } catch (err) {
-      console.error("sendMessageRealtime error:", err);
+      console.error("sendMessage error:", err);
     }
   };
 

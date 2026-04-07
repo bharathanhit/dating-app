@@ -3,8 +3,6 @@ import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Card, CardContent, Button, Grid, Paper, Divider, CircularProgress, Alert, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { MonetizationOn, CheckCircle, History, Stars } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../config/firebase';
 import { getCoinTransactions } from '../services/coinService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -36,7 +34,7 @@ const CoinsPage = () => {
             price: '₹10',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            paymentLink: 'https://imjo.in/NbaCv6'
+            paymentLink: 'https://rzp.io/rzp/RNWCMZp'
         },
         {
             id: 2,
@@ -48,7 +46,7 @@ const CoinsPage = () => {
             discount: '33% OFF',
             popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            paymentLink: 'https://imjo.in/p7dNcP'
+            paymentLink: 'https://rzp.io/rzp/sgyOTvh'
         },
         {
             id: 3,
@@ -56,10 +54,10 @@ const CoinsPage = () => {
             amount: 65,
             price: '₹50',
             originalPrice: '₹80',
-            discount: '40% OFF',
+            discount: '38% OFF',
             popular: true,
             gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)',
-            paymentLink: 'https://imjo.in/EAhRc6'
+            paymentLink: 'https://rzp.io/rzp/WpzrpKUf'
         },
     ];
 
@@ -82,16 +80,6 @@ const CoinsPage = () => {
         };
 
         fetchTransactions();
-
-        // Check for Redirect Return (payment_id)
-        const params = new URLSearchParams(window.location.search);
-        const urlPaymentId = params.get('payment_id');
-        const urlStatus = params.get('payment_status'); // Sometimes sent by gateway
-
-        if (urlPaymentId) {
-            handleAutoVerify(urlPaymentId);
-        }
-
     }, [user, navigate]);
 
     // DEBUG: Log URL params on mount/update
@@ -100,120 +88,28 @@ const CoinsPage = () => {
         console.log("CoinsPage URL Params:", Object.fromEntries(params.entries()));
     }, [window.location.search]);
 
-    const handleManualCheck = () => {
-        const params = new URLSearchParams(window.location.search);
-        const urlPaymentId = params.get('payment_id');
-        if (urlPaymentId) {
-            handleAutoVerify(urlPaymentId);
+
+    const handlePurchase = (pkg) => {
+        console.log("Purchasing package:", pkg.name, "with link:", pkg.paymentLink);
+        if (!user) {
+            navigate('/login');
+            return;
+        }
+
+        if (pkg.paymentLink) {
+            // Append userId and package details to the payment link as notes
+            // Razorpay Payment Pages/Links support prefilling notes via query params
+            const separator = pkg.paymentLink.includes('?') ? '&' : '?';
+            const paymentUrl = `${pkg.paymentLink}${separator}notes[userId]=${user.uid}&notes[coinsAmount]=${pkg.amount}&notes[packageId]=${pkg.id}`;
+            
+            console.log("Redirecting to:", paymentUrl);
+            window.open(paymentUrl, '_blank');
         } else {
-            setSnackbar({ open: true, message: 'No pending purchase found to claim. Please complete a payment first.', severity: 'warning' });
-        }
-    };
-
-
-    const handleAutoVerify = async (paymentId) => {
-        setVerifying(true);
-        try {
-            // Retrieve pending package from LocalStorage
-            const storedPkg = localStorage.getItem('pendingCoinPurchase');
-            let packageId = null;
-            let packageName = 'Coins';
-            let amount = 0;
-
-            if (storedPkg) {
-                const pkg = JSON.parse(storedPkg);
-                packageId = pkg.id;
-                packageName = pkg.name;
-                amount = pkg.amount;
-            }
-
-            console.log('Verifying payment:', paymentId, 'for package:', packageId);
-
-            const verifyPayment = httpsCallable(functions, 'verifyInstamojoPayment');
-
-            const result = await verifyPayment({
-                paymentId: paymentId,
-                packageId: packageId
-            });
-
-            if (!result.data || !result.data.success) {
-                throw new Error(result.data?.error || "Verification failed");
-            }
-
-            // If we reach here, verification was successful
-            setCreditedAmount(amount || 0);
-            setShowSuccess(true);
-            setShowPop(true);
-            setTimeout(() => setShowPop(false), 3000);
-
             setSnackbar({
                 open: true,
-                message: 'Payment Claimed Successfully!',
-                severity: 'success'
+                message: "Payment link not configured.",
+                severity: "warning"
             });
-
-            // Cleanup
-            localStorage.removeItem('pendingCoinPurchase');
-            window.history.replaceState({}, document.title, window.location.pathname); // Clear URL params
-
-            // Refresh transactions
-            const txns = await getCoinTransactions(user.uid, 20);
-            setTransactions(txns);
-
-        } catch (error) {
-            console.error('Auto verification failed:', error);
-            let errorMessage = 'Payment verification failed. Please contact support if money was deducted.';
-
-            if (error.code === 'functions/already-exists') {
-                errorMessage = 'This payment has already been processed.';
-            }
-
-            setSnackbar({
-                open: true,
-                message: errorMessage,
-                severity: 'error'
-            });
-        } finally {
-            setVerifying(false);
-        }
-    };
-
-    const handlePurchase = async (pkg) => {
-        if (!user) return;
-
-        try {
-            setLoading(true);
-
-            // 1. Save state to localStorage
-            localStorage.setItem('pendingCoinPurchase', JSON.stringify({
-                id: pkg.id,
-                name: pkg.name,
-                amount: pkg.amount,
-                price: pkg.price,
-                timestamp: Date.now()
-            }));
-
-            // 3. Call Firebase Cloud Function (Secure & Dedicated)
-            const createPayment = httpsCallable(functions, 'createInstamojoPayment');
-
-            const result = await createPayment({
-                packageId: pkg.id
-            });
-
-            if (result.data && result.data.paymentUrl) {
-                window.location.href = result.data.paymentUrl;
-            } else {
-                throw new Error(result.data?.error || "Failed to create payment link");
-            }
-
-        } catch (error) {
-            console.error('Error initiating purchase:', error);
-            setSnackbar({
-                open: true,
-                message: String(error.message || 'Failed to initiate purchase.'),
-                severity: 'error'
-            });
-            setLoading(false);
         }
     };
 
@@ -282,32 +178,6 @@ const CoinsPage = () => {
                 <Container maxWidth="lg">
                     {/* Header Section */}
                     <Box sx={{ textAlign: 'center', mb: 6 }}>
-                        <Button
-                            variant="contained"
-                            size="large"
-                            onClick={handleManualCheck}
-                            startIcon={<Stars />}
-                            sx={{
-                                mb: 3,
-                                background: 'linear-gradient(45deg, #FFD700 30%, #FFA500 90%)',
-                                color: '#000',
-                                fontWeight: 800,
-                                px: 4,
-                                py: 1.5,
-                                borderRadius: '50px',
-                                boxShadow: '0 4px 15px rgba(255, 215, 0, 0.4)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '1px',
-                                '&:hover': {
-                                    background: 'linear-gradient(45deg, #FFC800 30%, #FF9100 90%)',
-                                    transform: 'scale(1.05)',
-                                    boxShadow: '0 6px 20px rgba(255, 215, 0, 0.6)',
-                                },
-                                transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
-                            }}
-                        >
-                            Claim My Coins
-                        </Button>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
                             <MonetizationOn sx={{ fontSize: 48, color: '#FFD700' }} />
                             <Typography variant="h3" sx={{ fontWeight: 700, color: '#FFD700' }}>
@@ -402,7 +272,6 @@ const CoinsPage = () => {
                                                 variant="contained"
                                                 fullWidth
                                                 onClick={() => handlePurchase(pkg)}
-                                                disabled={loading || !pkg.paymentLink}
                                                 sx={{
                                                     mt: 2,
                                                     py: 1.5,
@@ -413,14 +282,10 @@ const CoinsPage = () => {
                                                     '&:hover': {
                                                         background: 'rgba(255, 255, 255, 1)',
                                                     },
-                                                    '&:disabled': {
-                                                        background: 'rgba(255, 255, 255, 0.5)',
-                                                        color: 'rgba(0, 0, 0, 0.5)',
-                                                    }
                                                 }}
-                                                startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CheckCircle />}
+                                                startIcon={<CheckCircle />}
                                             >
-                                                {loading ? 'Processing...' : (pkg.paymentLink ? 'Buy Now' : 'Unavailable')}
+                                                Buy Now
                                             </Button>
                                         </CardContent>
                                     </Card>

@@ -4,16 +4,9 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  functions = "netlify/functions"
 
-[functions]
-  directory = "netlify/functions"
-
-# SPA routing - redirect all routes to index.html except static files and functions
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-
+# SPA routing - redirect all routes to index.html except static files
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -1,6 +1,4 @@
 import { db } from '../config/firebase.js';
-import { realtimeDb } from '../config/firebase.js';
-import { ref, get } from 'firebase/database';
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, deleteDoc, onSnapshot, addDoc } from 'firebase/firestore';
 
 
@@ -8,6 +6,10 @@ import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orde
 export const createUserProfile = async (userId, profileData) => {
   try {
     const userDocRef = doc(db, 'users', userId);
+
+    // Check if user already exists to preserve coin balance
+    const existingDoc = await getDoc(userDocRef);
+    const existingData = existingDoc.exists() ? existingDoc.data() : null;
 
     // Normalize birthDate: if it's a Date object, convert to ISO string for portability
     const dataToSave = { ...profileData };
@@ -25,23 +27,34 @@ export const createUserProfile = async (userId, profileData) => {
     // Always write uid into the document
     dataToSave.uid = userId;
 
-    await setDoc(
-      userDocRef,
-      {
-        ...dataToSave,
-        coins: 25, // Initialize with 20 coins for new users
-        lastLoginDate: null, // Track last login for daily rewards
-        // Moderation tracking
-        isBlocked: false, // Whether user is currently blocked/bannedz
-        blockReason: null, // Reason for block if blocked
-        blockCount: 0, // Number of times user has been blocked
-        reportCount: 0, // Number of times user has been reported
-        blockedAt: null, // Timestamp of when user was blocked
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    // Prepare the data to save
+    const saveData = {
+      ...dataToSave,
+      updatedAt: serverTimestamp(),
+    };
+
+    // Check if user has completely onboarded, not just if the document exists
+    // (since useOnlineStatus may have just created a document with only 'status')
+    const isNewUser = !existingData || existingData.coins === undefined;
+
+    // Only initialize these fields for NEW users (or partially created ones)
+    if (isNewUser) {
+      console.log(`[createUserProfile] Creating NEW user profile for ${userId}`);
+      saveData.coins = 25; // Initialize with 25 coins for new users
+      saveData.lastLoginDate = null; // Track last login for daily rewards
+      saveData.isBlocked = false; // Whether user is currently blocked/banned
+      saveData.blockReason = null; // Reason for block if blocked
+      saveData.blockCount = 0; // Number of times user has been blocked
+      saveData.reportCount = 0; // Number of times user has been reported
+      saveData.blockedAt = null; // Timestamp of when user was blocked
+      saveData.createdAt = serverTimestamp();
+    } else {
+      console.log(`[createUserProfile] Updating EXISTING user profile for ${userId}, preserving coins: ${existingData.coins || 0}`);
+      // For existing users, preserve critical fields that shouldn't be overwritten
+      // DO NOT include coins, blockCount, reportCount, etc. in the update
+    }
+
+    await setDoc(userDocRef, saveData, { merge: true });
     return true;
   } catch (error) {
     console.error('Error creating user profile:', error);
@@ -484,28 +497,14 @@ export const getRandomUser = async (currentUserId) => {
   }
 };
 
-// Get list of online user IDs from Realtime Database
+// Get list of online user IDs from Firestore
 const getOnlineUsers = async () => {
   try {
-    const statusRef = ref(realtimeDb, 'status');
-    const snapshot = await get(statusRef);
+    const usersCol = collection(db, 'users');
+    const q = query(usersCol, where('status.online', '==', true));
+    const snapshot = await getDocs(q);
     
-    if (!snapshot.exists()) {
-      console.log('[getOnlineUsers] No status data found');
-      return [];
-    }
-    
-    const statusData = snapshot.val();
-    const onlineUserIds = [];
-    
-    // Filter users where online === true
-    Object.keys(statusData).forEach(userId => {
-      if (statusData[userId]?.online === true) {
-        onlineUserIds.push(userId);
-      }
-    });
-    
-    return onlineUserIds;
+    return snapshot.docs.map(doc => doc.id);
   } catch (error) {
     console.error('Error getting online users:', error);
     return [];

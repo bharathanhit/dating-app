@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getUserProfile } from '../services/userService';
 import { Box, Container, Typography, Avatar, Chip, Button, CircularProgress } from '@mui/material';
-
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
+import { listenForUserStatus } from '../services/chatServiceV2';
 
 const PublicProfilePage = () => {
   const { uid } = useParams();
@@ -29,13 +27,13 @@ const PublicProfilePage = () => {
       .finally(() => setLoading(false));
 
     // Listen for online status
-    const statusRef = ref(realtimeDb, `status/${uid}`);
-    const unsubscribe = onValue(statusRef, (snapshot) => {
-      const data = snapshot.val();
+    const unsubscribe = listenForUserStatus(uid, (data) => {
       setIsOnline(data?.online || false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [uid]);
 
   if (loading) return <Container sx={{ pt: 4 }}><CircularProgress /></Container>;

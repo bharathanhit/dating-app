@@ -9,8 +9,7 @@ import {
   Divider,
   Badge,
 } from "@mui/material";
-import { ref, onValue } from "firebase/database";
-import { realtimeDb } from "../config/firebase";
+import { listenForUserStatus } from "../services/chatServiceV2";
 
 const ConversationsList = ({
   conversations,
@@ -31,9 +30,7 @@ const ConversationsList = ({
       const otherUid = c.participants?.find((id) => id !== user?.uid);
       if (!otherUid) return;
 
-      const statusRef = ref(realtimeDb, `status/${otherUid}`);
-      const unsubscribe = onValue(statusRef, (snap) => {
-        const status = snap.val();
+      const unsubscribe = listenForUserStatus(otherUid, (status) => {
         setOnlineStatuses((prev) => ({
           ...prev,
           [otherUid]: status?.online || false,
@@ -44,7 +41,9 @@ const ConversationsList = ({
     });
 
     return () => {
-      unsubscribers.forEach((unsub) => unsub());
+      unsubscribers.forEach((unsub) => {
+        if (typeof unsub === 'function') unsub();
+      });
     };
   }, [conversations, user]);
 

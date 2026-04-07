@@ -4,11 +4,8 @@ import { Container, Box, Paper, Typography, TextField, IconButton, Divider, Menu
 import SendIcon from '@mui/icons-material/Send';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useAuth } from '../context/AuthContext';
-import { getOrCreateConversation, listenForConversations } from '../services/chatServiceV2';
-import { sendMessageRealtime, listenForMessagesRealtime } from '../services/chatRealtimeService';
+import { getOrCreateConversation, listenForConversations, listenForMessages, sendMessage, listenForUserStatus } from '../services/chatServiceV2';
 import { getUserProfile, blockUser, unblockUser, isUserBlocked, reportUser } from '../services/userService';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
 import ChatMessageBubble from '../components/c.jsx';
 import ReportDialog from '../components/ReportDialog';
 
@@ -114,7 +111,7 @@ const ChatInbox = () => {
     let unsub;
     try {
       console.log('[ChatInbox] Setting up message listener for:', conv.id);
-      unsub = listenForMessagesRealtime(conv.id, (messagesArray) => {
+      unsub = listenForMessages(conv.id, (messagesArray) => {
         console.log('[ChatInbox] Received messages update:', messagesArray.length);
         // Set messages directly from the listener
         setMessages(messagesArray);
@@ -136,15 +133,12 @@ const ChatInbox = () => {
   }, [conv?.id]); // Only depend on conv.id to prevent unnecessary re-renders
 
   useEffect(() => {
-    const statusRef = ref(realtimeDb, `status/${uid}`);
-    const unsubscribe = onValue(statusRef, (snap) => setStatus(snap.val()));
+    const unsubscribe = listenForUserStatus(uid, (data) => setStatus(data));
 
     return () => {
-      console.log('Cleaning up status listener. Value of unsubscribe:', unsubscribe);
+      console.log('Cleaning up status listener.');
       if (typeof unsubscribe === 'function') {
         unsubscribe();
-      } else {
-        console.warn('Unsubscribe is not a function during cleanup. Value:', unsubscribe);
       }
     };
   }, [uid]);
@@ -153,10 +147,10 @@ const ChatInbox = () => {
     if (!text.trim() || !conv?.id || !user?.uid) return;
     const payload = { senderId: user.uid, text: text.trim(), timestamp: Date.now() };
     try {
-      await sendMessageRealtime(conv.id, payload);
+      await sendMessage(conv.id, payload);
       setText('');
     } catch (err) {
-      console.error('sendMessageRealtime error:', err);
+      console.error('sendMessage error:', err);
     }
   };
 
@@ -262,6 +256,16 @@ const ChatInbox = () => {
 
       <Paper elevation={0} sx={{ display: 'flex', flexDirection: 'column', minHeight: '70vh', p: 2, background: 'transparent' }}>
         <Box sx={{ flex: 1, overflow: 'auto' }}>
+          {messages.length === 0 && (
+            <Box sx={{ my: 3, p: 2.5, bgcolor: "rgba(117, 75, 255, 0.04)", borderRadius: 3, border: "1px dashed rgba(117, 75, 255, 0.2)", mx: "auto", maxWidth: "80%" }}>
+              <Typography variant="subtitle2" sx={{ color: "#754bff", fontWeight: 600, mb: 0.5, textAlign: "center" }}>
+                Start the Conversation! 👋
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", lineHeight: 1.5 }}>
+                Keep it respectful, safe, and fun. Protect your personal information and never share financial details. By sending a message, you agree to our community guidelines.
+              </Typography>
+            </Box>
+          )}
           {messages.map((m, i) => (
             <ChatMessageBubble key={m.id || i} m={m} meId={user?.uid} />
           ))}

@@ -56,7 +56,7 @@ const RefundPolicyPage = () => {
                                 How to Request a Refund
                             </Typography>
                             <p>
-                                A User may submit a claim for a refund for a purchase made, by raising a ticket here or contacting us on <strong>seller+3d44a184915446dab5537b61ebaa1622@instamojo.com</strong> and providing a clear and specific reason for the refund request, including the exact terms that have been violated, along with any proof, if required.
+                                A User may submit a claim for a refund for a purchase made, by raising a ticket here or contacting us on <strong>bixsolcompany@gmail.com</strong> and providing a clear and specific reason for the refund request, including the exact terms that have been violated, along with any proof, if required.
                             </p>
                             <p>
                                 Whether a refund will be provided will be determined by us, and we may ask for additional details before approving any requests.

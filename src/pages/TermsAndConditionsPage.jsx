@@ -48,7 +48,7 @@ const TermsAndConditionsPage = () => {
                                 “Platform” refers to the website or platform where the Merchant offers its products or services and where the Transaction may be initiated.
                             </p>
                             <p>
-                                “Transaction” shall refer to the order or request placed by the User with the Merchant to purchase the products and/or services listed on the Platform by paying the Transaction Amount to the Merchant; “Transaction Amount” shall mean the amount paid by the User in connection with a Transaction; and “User/Users”, means any person availing the products and/or services offered on the Platform; “Website” shall mean www.instamojo.com or the mobile application.
+                                “Transaction” shall refer to the order or request placed by the User with the Merchant to purchase the products and/or services listed on the Platform by paying the Transaction Amount to the Merchant; “Transaction Amount” shall mean the amount paid by the User in connection with a Transaction; and “User/Users”, means any person availing the products and/or services offered on the Platform; “Website” shall mean bi-chat.online or the mobile application.
                             </p>
 
                             <Typography variant="h6" sx={{ fontWeight: 700, mt: 3, mb: 1 }}>
@@ -135,7 +135,7 @@ const TermsAndConditionsPage = () => {
                                 GRIEVANCE REDRESSAL
                             </Typography>
                             <p>
-                                You agree that if you have any question or complaint with regard to any product and/or service availed on our Platform, or pertaining to the Transaction, including but not limited to, double debit of Transaction Amount, fraudulent Transaction, unauthorized Transaction, refund requests, etc., you may reach out here.
+                                You agree that if you have any question or complaint with regard to any product and/or service availed on our Platform, or pertaining to the Transaction, including but not limited to, double debit of Transaction Amount, fraudulent Transaction, unauthorized Transaction, refund requests, etc., you may reach out to us at <strong>bixsolcompany@gmail.com</strong> or <strong>+91 7339310823</strong>.
                             </p>
 
                             <Typography variant="h6" sx={{ fontWeight: 700, mt: 3, mb: 1 }}>

@@ -73,28 +73,65 @@ export const addCoins = async (userId, amount, reason = 'manual') => {
 };
 
 /**
- * SECURE: Deduct coins from user's balance using Cloud Functions
+ * Deduct coins from user's balance with validation
  * @param {string} userId - User ID
  * @param {number} amount - Amount of coins to deduct
- * @param {string} reason - Reason for deducting coins
+ * @param {string} reason - Reason for deducting coins (e.g., 'like', 'message')
  * @returns {Promise<boolean>} Success status
  */
 export const deductCoins = async (userId, amount, reason = 'manual') => {
   try {
-    const deductCoinsFn = httpsCallable(functions, 'deductCoins');
-    const result = await deductCoinsFn({ amount, reason });
+    const userDocRef = doc(db, 'users', userId);
     
-    if (result.data && result.data.success) {
-      console.log(`[coinService] Securely deducted ${amount} coins (reason: ${reason})`);
-      return true;
+    // Use transaction to ensure atomic update and prevent negative balance
+    const result = await runTransaction(db, async (transaction) => {
+      const userDoc = await transaction.get(userDocRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+      
+      const currentCoins = userDoc.data().coins || 0;
+      
+      // Check if user has enough coins
+      if (currentCoins < amount) {
+        return { success: false, error: 'Insufficient coins' };
+      }
+      
+      const newBalance = currentCoins - amount;
+      
+      // Update user's coin balance
+      transaction.update(userDocRef, {
+        coins: newBalance,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Log transaction
+      const transactionRef = doc(collection(db, 'users', userId, 'coinTransactions'));
+      transaction.set(transactionRef, {
+        type: 'debit',
+        amount: amount,
+        reason: reason,
+        balanceBefore: currentCoins,
+        balanceAfter: newBalance,
+        createdAt: serverTimestamp()
+      });
+      
+      return { success: true };
+    });
+    
+    if (!result.success) {
+      console.warn(`[coinService] Failed to deduct coins: ${result.error}`);
+      return false;
     }
-    return false;
+    
+    console.log(`[coinService] Deducted ${amount} coins from user ${userId} (reason: ${reason})`);
+    return true;
   } catch (error) {
-    console.error('Error securely deducting coins:', error);
-    return false;
+    console.error('Error deducting coins:', error);
+    throw error;
   }
 };
-
 
 /**
  * Check if user is eligible for daily login reward and award if applicable
@@ -108,21 +145,22 @@ export const checkDailyLoginReward = async (userId) => {
     
     if (!userDoc.exists()) {
       console.error('[coinService] User not found for daily login reward');
-      return { awarded: false, coins: 0 };z
+      return { awarded: false, coins: 0 };
     }
     
     const userData = userDoc.data();
     const lastLoginDate = userData.lastLoginDate;
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
     
-    // Initialize coins field if it doesn't exist (for existing users)
+    // Initialize coins field if it doesn't exist (for existing users who didn't get their starting bonus)
     if (userData.coins === undefined || userData.coins === null) {
-      console.log('[coinService] Initializing coins for existing user');
+      console.log('[coinService] Initializing coins for existing user to 25');
       await updateDoc(userDocRef, {
-        coins: 0,
+        coins: 25,
         lastLoginDate: null,
         updatedAt: serverTimestamp()
       });
+      return { awarded: false, coins: 25 };
     }
     
     // Check if user already logged in today
@@ -214,7 +252,7 @@ export const initializeUserCoins = async (userId) => {
   try {
     const userDocRef = doc(db, 'users', userId);
     await updateDoc(userDocRef, {
-      coins: 0,
+      coins: 25,
       lastLoginDate: null,
       updatedAt: serverTimestamp()
     });

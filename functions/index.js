@@ -3,16 +3,27 @@ const admin = require("firebase-admin");
 const cors = require("cors")({ origin: true });
 const crypto = require("crypto");
 const axios = require("axios");
+const Razorpay = require("razorpay");
 
 // Initialize Firebase Admin
 admin.initializeApp();
+
+// RAZORPAY CONFIGURATION
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_live_SZ2hAjWVwfPAA5";
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "gIUEGeeEzhtY5LZgVetJAkl2";
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "bichat@2161";
+
+const razorpay = new Razorpay({
+  key_id: RAZORPAY_KEY_ID,
+  key_secret: RAZORPAY_KEY_SECRET,
+});
 
 // UPI CONFIGURATION
 // Loaded from .env file
 const ADMIN_UPI_ID = process.env.UPI_ID || "abharathan61-2@okaxis";
 const INSTAMOJO_WEBHOOK_SECRET = process.env.INSTAMOJO_WEBHOOK_SECRET || "";
 
-// INSTAMOJO CREDENTIALS (UPDATED)
+// INSTAMOJO CREDENTIALS (Sourced from project configuration)
 const INSTAMOJO_CLIENT_ID = "t3DvU9c4jXQB8ng5ro60jmw7fqvFdLdMk104ekFv";
 const INSTAMOJO_CLIENT_SECRET = "WsmwStFWfaeb6MFmR9BsUGZY9IuMNUeC2xITVL1XqtQ0wK7JFE7yGcuBTc9F2utOAWV0cB5iSLvJtO2DjDwdvZvTBktUmP0fhdCRZzOk2GTFnhDyMlppT2Vgmr3kAoRx";
 const INSTAMOJO_API_ENDPOINT = "https://api.instamojo.com/v2";
@@ -413,7 +424,6 @@ async function getInstamojoAccessToken() {
 /**
  * Create Instamojo Payment Request
  * Callable Function: Generates a payment link
- * CORS is automatically handled by Firebase for callable functions
  */
 exports.createInstamojoPayment = functions.https.onCall(async (data, context) => {
   // 1. Ensure user is authenticated
@@ -445,7 +455,7 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
       3: { coins: 65, price: 50, name: "65 Coins" },
     };
 
-    const pkg = coinPackages[packageId] || coinPackages[Number(packageId)];
+    const pkg = coinPackages[packageId];
     if (!pkg) {
       throw new functions.https.HttpsError("invalid-argument", "Invalid package ID.");
     }
@@ -460,7 +470,7 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
     payload.append('buyer_name', userName);
     payload.append('email', userEmail);
     payload.append('redirect_url', redirectUrl);
-    payload.append('allow_repeated_payments', 'False');
+    payload.append('allow_repeated_payments', 'false');
 
     const response = await axios.post(
       `${INSTAMOJO_API_ENDPOINT}/payment_requests/`,
@@ -484,8 +494,7 @@ exports.createInstamojoPayment = functions.https.onCall(async (data, context) =>
     if (error.response) {
          console.error("[CREATE_PAYMENT] API Response:", error.response.data);
     }
-    const errorMessage = error.response?.data?.message || error.message || "Unable to create payment link.";
-    throw new functions.https.HttpsError("internal", errorMessage);
+    throw new functions.https.HttpsError("internal", "Unable to create payment link.");
   }
 });
 
@@ -504,13 +513,13 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
   }
 
   const userId = context.auth.uid;
-  const { paymentId, packageId } = data;
+  let { paymentId, packageId } = data;
 
   // 2. Validate input
-  if (!paymentId || !packageId) {
+  if (!paymentId) {
     throw new functions.https.HttpsError(
       "invalid-argument",
-      "Payment ID and Package ID are required."
+      "Payment ID is required."
     );
   }
 
@@ -528,61 +537,68 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
     if (!existingPayment.empty) {
       const existingDoc = existingPayment.docs[0].data();
       if (existingDoc.userId === userId) {
-        throw new functions.https.HttpsError(
-          "already-exists",
-          "This payment has already been verified and coins have been credited."
-        );
+        return { 
+          success: true, 
+          message: "This payment was already verified. Your coins are already credited.",
+          coinsAdded: existingDoc.coinsAmount || 0 
+        };
       } else {
-        throw new functions.https.HttpsError(
-          "permission-denied",
-          "This payment ID belongs to another user."
-        );
+        throw new functions.https.HttpsError("permission-denied", "This payment ID belongs to another user.");
       }
     }
 
     // 5. Verify payment with Instamojo API
-    console.log(`[VERIFY] Verifying payment ${paymentId} for user ${userId}`);
+    console.log(`[VERIFY] Fetching details for ${paymentId} (User: ${userId})`);
     
     const response = await axios.get(
       `${INSTAMOJO_API_ENDPOINT}/payments/${paymentId}/`,
       {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-        },
+        headers: { "Authorization": `Bearer ${accessToken}` },
       }
     );
 
     const payment = response.data;
+    console.log(`[VERIFY] API Response for ${paymentId}:`, JSON.stringify(payment));
     
     // 6. Validate payment status
     if (payment.status !== "Credit") {
       throw new functions.https.HttpsError(
         "failed-precondition",
-        `Payment status is ${payment.status}. Only successful payments can be verified.`
+        `Payment status is ${payment.status}. We can only credit coins for successful payments.`
       );
     }
 
-    // 7. Get package details and validate amount
-    // MAPPED TO FRONTEND PACKAGES (CoinsPage.jsx)
+    // 7. Map amount to Package if packageId is missing
     const coinPackages = {
-      1: { coins: 10, price: 10 },
-      2: { coins: 25, price: 20 },
-      3: { coins: 65, price: 50 },
+      1: { id: 1, coins: 10, price: 10 },
+      2: { id: 2, coins: 25, price: 20 },
+      3: { id: 3, coins: 65, price: 50 },
     };
+
+    const paidAmount = parseFloat(payment.amount);
+    
+    // If packageId is missing, try to find it by price
+    if (!packageId) {
+       console.log(`[VERIFY] packageId missing, searching by amount: ₹${paidAmount}`);
+       const foundPkg = Object.values(coinPackages).find(p => p.price === Math.floor(paidAmount));
+       if (foundPkg) {
+           packageId = foundPkg.id;
+           console.log(`[VERIFY] Inferred packageId: ${packageId}`);
+       }
+    }
 
     const pkg = coinPackages[packageId];
     if (!pkg) {
       throw new functions.https.HttpsError(
         "invalid-argument",
-        "Invalid package ID."
+        `Could not identify the coin package for amount ₹${paidAmount}. Please contact support.`
       );
     }
 
-    const paidAmount = parseFloat(payment.amount);
     if (paidAmount < pkg.price) {
       throw new functions.https.HttpsError(
         "failed-precondition",
-        `Payment amount (₹${paidAmount}) does not match package price (₹${pkg.price}).`
+        `Paid amount (₹${paidAmount}) is less than package price (₹${pkg.price}).`
       );
     }
 
@@ -677,61 +693,235 @@ exports.verifyInstamojoPayment = functions.https.onCall(async (data, context) =>
   }
 });
 
-// SECURE COIN MANAGEMENT
 /**
- * Deduct coins from user balance securely on server side
- * @param {Object} data - { amount, reason }
- * @param {Object} context - Firebase context
+ * Create Razorpay Order
+ * Callable Function: Generates a Razorpay order ID
  */
-exports.deductCoins = functions.https.onCall(async (data, context) => {
+exports.createRazorpayOrder = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
-    throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
+    throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
   }
 
-  const { amount, reason } = data;
-  const userId = context.auth.uid;
-
-  if (!amount || amount <= 0) {
-    throw new functions.https.HttpsError("invalid-argument", "Valid amount required.");
+  const { amount, packageId } = data;
+  if (!amount || !packageId) {
+    throw new functions.https.HttpsError("invalid-argument", "Missing parameters.");
   }
-
-  const userRef = admin.firestore().collection("users").doc(userId);
 
   try {
-    return await admin.firestore().runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef);
-      if (!userDoc.exists) {
-        throw new functions.https.HttpsError("not-found", "User not found.");
+    const options = {
+      amount: Math.round(amount * 100), // Razorpay handles in paise
+      currency: "INR",
+      receipt: `receipt_${Date.now()}`,
+      notes: {
+        userId: context.auth.uid,
+        packageId: packageId,
+        coinsAmount: data.coinsAmount // Pass coinsAmount from frontend or lookup
       }
+    };
+
+    const order = await razorpay.orders.create(options);
+    return { orderId: order.id, keyId: RAZORPAY_KEY_ID };
+  } catch (error) {
+    console.error("Razorpay order creation error:", error);
+    throw new functions.https.HttpsError("internal", "Failed to create order.");
+  }
+});
+
+/**
+ * Verify Razorpay Payment
+ * Callable Function: Securely verifies signature and credits coins
+ */
+exports.verifyRazorpayPayment = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError("unauthenticated", "You must be logged in.");
+  }
+
+  const {
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    packageId,
+    coinsAmount
+  } = data;
+
+  const userId = context.auth.uid;
+
+  // 1. Verify Request
+  const body = razorpay_order_id + "|" + razorpay_payment_id;
+  const expectedSignature = crypto
+    .createHmac("sha256", RAZORPAY_KEY_SECRET)
+    .update(body.toString())
+    .digest("hex");
+
+  if (expectedSignature !== razorpay_signature) {
+    throw new functions.https.HttpsError("permission-denied", "Invalid payment signature.");
+  }
+
+  try {
+    // 2. Prevent Double Credit
+    const existingPayment = await admin.firestore()
+      .collection("verified_payments")
+      .where("paymentId", "==", razorpay_payment_id)
+      .limit(1)
+      .get();
+
+    if (!existingPayment.empty) {
+      return { success: true, message: "Payment already processed." };
+    }
+
+    // 3. Update User Balance
+    const userRef = admin.firestore().collection("users").doc(userId);
+    
+    await admin.firestore().runTransaction(async (transaction) => {
+      const userDoc = await transaction.get(userRef);
+      if (!userDoc.exists) throw new Error("User not found");
 
       const currentCoins = userDoc.data().coins || 0;
-      if (currentCoins < amount) {
-        throw new functions.https.HttpsError("failed-precondition", "Insufficient coins.");
-      }
+      const newBalance = currentCoins + coinsAmount;
 
-      const newBalance = currentCoins - amount;
-      transaction.update(userRef, { 
+      transaction.update(userRef, {
         coins: newBalance,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      const txRef = userRef.collection("coinTransactions").doc();
-      transaction.set(txRef, {
-        type: "debit",
-        amount: amount,
-        reason: reason || "manual",
+      // Log transaction
+      const transactionRef = userRef.collection("coinTransactions").doc();
+      transaction.set(transactionRef, {
+        type: 'credit',
+        amount: coinsAmount,
+        reason: `purchase_razorpay_${packageId}`,
         balanceBefore: currentCoins,
         balanceAfter: newBalance,
+        paymentId: razorpay_payment_id,
+        orderId: razorpay_order_id,
+        provider: 'razorpay',
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
-
-      return { success: true, newBalance };
     });
+
+    // 4. Log in verified_payments
+    await admin.firestore().collection("verified_payments").add({
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_order_id,
+      userId: userId,
+      packageId: packageId,
+      coinsAmount: coinsAmount,
+      status: "success",
+      provider: "razorpay",
+      verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, coinsAdded: coinsAmount };
   } catch (error) {
-    console.error("DeductCoins Error:", error);
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError("internal", error.message);
+    console.error("Razorpay verification error:", error);
+    throw new functions.https.HttpsError("internal", "Verification failed.");
   }
 });
 
+/**
+ * Razorpay Webhook Handler
+ */
+exports.razorpayWebhook = functions.https.onRequest(async (req, res) => {
+  const signature = req.headers["x-razorpay-signature"];
+
+  if (!signature) {
+    return res.status(400).send("No signature provided.");
+  }
+
+  // 1. Verify Signature
+  // In Firebase Functions, req.rawBody is sometimes required for signature verification 
+  // but if req.body is already parsed, we can stringify it.
+  const shasum = crypto.createHmac("sha256", RAZORPAY_WEBHOOK_SECRET);
+  shasum.update(JSON.stringify(req.body));
+  const expectedSignature = shasum.digest("hex");
+
+  if (expectedSignature !== signature) {
+    console.error("Invalid webhook signature.");
+    return res.status(403).send("Forbidden.");
+  }
+
+  const event = req.body.event;
+  console.log(`Received Razorpay event: ${event}`);
+
+  // 2. Process Success Event
+  if (event === "payment.captured" || event === "order.paid") {
+    const payment = req.body.payload.payment.entity;
+    const orderId = payment.order_id;
+    const paymentId = payment.id;
+    
+    // Notes contain mapping info
+    const userId = payment.notes.userId;
+    const packageId = payment.notes.packageId;
+    const coinsAmount = parseInt(payment.notes.coinsAmount || 0);
+
+    if (!userId || !coinsAmount) {
+      console.warn("Invalid webhook data (missing userId or coinsAmount).");
+      return res.status(200).send("OK - Data missing");
+    }
+
+    try {
+      // Check duplicate
+      const existing = await admin.firestore()
+        .collection("verified_payments")
+        .where("paymentId", "==", paymentId)
+        .limit(1)
+        .get();
+
+      if (!existing.empty) {
+        return res.status(200).send("OK - Already processed");
+      }
+
+      // Record & Credit
+      await admin.firestore().runTransaction(async (transaction) => {
+        const userRef = admin.firestore().collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+        
+        if (!userDoc.exists) return;
+
+        const currentCoins = userDoc.data().coins || 0;
+        const newBalance = currentCoins + coinsAmount;
+
+        transaction.update(userRef, {
+          coins: newBalance,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // History
+        const transactionRef = userRef.collection("coinTransactions").doc();
+        transaction.set(transactionRef, {
+          type: "credit",
+          amount: coinsAmount,
+          reason: `purchase_razorpay_webhook_${packageId}`,
+          balanceBefore: currentCoins,
+          balanceAfter: newBalance,
+          paymentId: paymentId,
+          orderId: orderId,
+          provider: "razorpay_webhook",
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      });
+
+      // verified_payments record
+      await admin.firestore().collection("verified_payments").add({
+        paymentId: paymentId,
+        orderId: orderId,
+        userId: userId,
+        packageId: packageId,
+        coinsAmount: coinsAmount,
+        status: "success",
+        webhook: true,
+        provider: "razorpay",
+        verifiedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      console.log(`Successfully credited ${coinsAmount} coins to ${userId} via webhook.`);
+      return res.status(200).send("OK");
+    } catch (err) {
+      console.error("Error processing Razorpay webhook:", err);
+      return res.status(500).send("Internal Server Error");
+    }
+  }
+
+  return res.status(200).send("OK");
+});
 

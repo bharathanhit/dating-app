@@ -5,8 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { addLikedProfile, removeLikedProfile, hasEverLikedProfile } from '../services/userService';
 import { deductCoins, getUserCoins } from '../services/coinService';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ref, onValue } from 'firebase/database';
-import { realtimeDb } from '../config/firebase';
+import { listenForUserStatus } from '../services/chatServiceV2';
 import { useState, useEffect } from 'react';
 import { Alert, Snackbar } from '@mui/material';
 
@@ -62,12 +61,12 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
 
   useEffect(() => {
     if (!profile?.uid) return;
-    const statusRef = ref(realtimeDb, `status/${profile.uid}`);
-    const unsubscribe = onValue(statusRef, (snapshot) => {
-      const data = snapshot.val();
+    const unsubscribe = listenForUserStatus(profile.uid, (data) => {
       setIsOnline(data?.online || false);
     });
-    return () => unsubscribe();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [profile?.uid]);
 
   const handleLike = async () => {
