@@ -100,9 +100,20 @@ const CoinsPage = () => {
             // Append userId and package details to the payment link as notes
             // Razorpay Payment Pages/Links support prefilling notes via query params
             const separator = pkg.paymentLink.includes('?') ? '&' : '?';
-            const paymentUrl = `${pkg.paymentLink}${separator}notes[userId]=${user.uid}&notes[coinsAmount]=${pkg.amount}&notes[packageId]=${pkg.id}`;
+            // Brute-force injection of User ID into pre-fillable fields and notes
+            const variations = [
+                `userId=${user.uid}`,
+                `user_id=${user.uid}`,
+                `userID=${user.uid}`,
+                `User ID=${user.uid}`,
+                `notes[userId]=${user.uid}`,
+                `notes[coinsAmount]=${pkg.amount}`,
+                `notes[packageId]=${pkg.id}`
+            ];
             
-            console.log("Redirecting to:", paymentUrl);
+            const paymentUrl = `${pkg.paymentLink}${separator}${variations.join('&')}`;
+            
+            console.log("Redirecting to Razorpay with metadata...");
             window.open(paymentUrl, '_blank');
         } else {
             setSnackbar({

@@ -18,7 +18,20 @@ const db = admin.firestore();
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || "bichat@2161";
 
 export const handler = async (event, context) => {
-    // Only allow POST
+    // 0. GET handler for manual testing / ping
+    if (event.httpMethod === "GET") {
+        return { 
+            statusCode: 200, 
+            body: JSON.stringify({
+                status: "Live",
+                message: "Razorpay Webhook is active and reachable.",
+                environment: process.env.FIREBASE_SERVICE_ACCOUNT ? "Firebase Initialized" : "Firebase Missing",
+                webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET ? "Configured" : "Using Default"
+            })
+        };
+    }
+
+    // Only allow POST for actual webhooks
     if (event.httpMethod !== "POST") {
         return { statusCode: 405, body: "Method Not Allowed" };
     }
@@ -41,36 +54,65 @@ export const handler = async (event, context) => {
         const payload = JSON.parse(payloadStr);
         console.log("[WEBHOOK] Received event:", payload.event);
 
-        // 2. Handle payment.captured (standard for Payment Pages / Links)
-        // or order.paid
+        // 2. Extract Payment/Order data
         if (payload.event === "payment.captured" || payload.event === "order.paid") {
-            const data = payload.payload.payment?.entity || payload.payload.order?.entity;
-            const notes = data.notes || {};
+            const payment = payload.payload.payment?.entity;
+            const order = payload.payload.order?.entity;
+            const data = payment || order;
             
-            const userId = notes.userId;
-            const paymentId = data.id;
-            const paymentAmount = data.amount / 100; // back to INR
-
-            let coinsAmount = parseInt(notes.coinsAmount || 0);
-            let packageId = notes.packageId || "custom";
-
-            // FALLBACK: Infer coins if not in notes (common for some Razorpay setups)
-            if (!coinsAmount) {
-                if (paymentAmount >= 50) {
-                    coinsAmount = 65;
-                    packageId = "3";
-                } else if (paymentAmount >= 20) {
-                    coinsAmount = 25;
-                    packageId = "2";
-                } else if (paymentAmount >= 10) {
-                    coinsAmount = 10;
-                    packageId = "1";
-                }
+            if (!data) {
+                console.error("[WEBHOOK] No payment or order entity found in payload");
+                return { statusCode: 200, body: "OK - Data missing" };
             }
 
+            const notes = data.notes || {};
+            console.log("[WEBHOOK] Raw Notes received:", JSON.stringify(notes));
+            
+            // Search for UserId in multiple places and case variations
+            let userId = notes.userId || 
+                         notes.user_id || 
+                         notes.userid || 
+                         notes.notes_userId || 
+                         notes["User ID"] || 
+                         notes["user id"];
+
+            const paymentId = payment?.id || data.id;
+            const paymentAmount = data.amount / 100; // back to INR
+
+            // Search for Coins in multiple places
+            let coinsAmount = parseInt(notes.coinsAmount || 
+                                     notes.coins_amount || 
+                                     notes.coins || 
+                                     notes["Coins"] || 
+                                     0);
+            
+            let packageId = notes.packageId || notes.package_id || notes["Package ID"] || "custom";
+
+            // FALLBACK: If coinsAmount is 0, infer from the actual price paid
+            if (coinsAmount === 0 && paymentAmount > 0) {
+                console.log(`[WEBHOOK] coinsAmount missing in notes. Inferring from amount paid: ₹${paymentAmount}`);
+                if (paymentAmount >= 50) coinsAmount = 65;
+                else if (paymentAmount >= 20) coinsAmount = 25;
+                else if (paymentAmount >= 10) coinsAmount = 10;
+                else if (paymentAmount >= 1) coinsAmount = Math.floor(paymentAmount); // 1 coin per rupee for small tests
+            }
+
+            console.log(`[WEBHOOK] Meta: Payment=${paymentId}, Amount=₹${paymentAmount}, User=${userId}, Coins=${coinsAmount}`);
+
             if (!userId) {
-                console.warn("[WEBHOOK] Missing userId or coinsAmount in notes", notes);
-                return { statusCode: 200, body: "OK - No user to credit" };
+                console.warn("[WEBHOOK] FATAL: Missing userId. Cannot credit coins.");
+                console.warn("[WEBHOOK] Debug - Full Data Keys:", Object.keys(data));
+                console.warn("[WEBHOOK] Debug - Notes Keys:", Object.keys(notes));
+                // We return 200 to acknowledge receipt to Razorpay, but log the failure
+                return { 
+                    statusCode: 200, 
+                    body: "OK - Webhook received but userId missing in notes" 
+                };
+            }
+
+            if (coinsAmount <= 0) {
+                console.warn("[WEBHOOK] No coins to credit (amount is 0)");
+                return { statusCode: 200, body: "OK - Zero coins" };
             }
 
             // 3. Process credit in transaction
@@ -79,17 +121,18 @@ export const handler = async (event, context) => {
             await db.runTransaction(async (transaction) => {
                 const userDoc = await transaction.get(userRef);
                 if (!userDoc.exists) {
-                    throw new Error(`User ${userId} not found`);
+                    console.error(`[WEBHOOK] User ${userId} not found in database`);
+                    return; // Fail silently to Razorpay
                 }
 
-                // Check for duplicate processing
+                // Check for duplicate processing (Payment ID should be unique)
                 const paymentCheck = await db.collection("verified_payments")
                     .where("paymentId", "==", paymentId)
                     .limit(1)
                     .get();
 
                 if (!paymentCheck.empty) {
-                    console.log(`[WEBHOOK] Payment ${paymentId} already processed`);
+                    console.log(`[WEBHOOK] Duplicate: Payment ${paymentId} already processed`);
                     return;
                 }
 
@@ -109,9 +152,10 @@ export const handler = async (event, context) => {
                     userId: userId,
                     packageId: packageId,
                     coinsAmount: coinsAmount,
-                    amount: data.amount / 100, // back to INR
+                    amount: paymentAmount,
                     status: "captured",
                     provider: "razorpay_webhook",
+                    notes: notes,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
@@ -129,7 +173,7 @@ export const handler = async (event, context) => {
                 });
             });
 
-            console.log(`[WEBHOOK] Successfully credited ${coinsAmount} coins to user ${userId}`);
+            console.log(`[WEBHOOK] SUCCESS: Credited ${coinsAmount} coins to user ${userId}`);
         }
 
         return {
