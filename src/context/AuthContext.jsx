@@ -50,76 +50,62 @@ export const AuthProvider = ({ children }) => {
       // Fetch user profile from Firestore if user exists
       if (currentUser) {
         // PRE-FILL: Set a temporary profile from Google data instantly
-        // This ensures isProfileComplete is true for Google users from the very first frame
-        setProfile({
+        const tempProfile = {
           uid: currentUser.uid,
           name: currentUser.displayName || "",
           email: currentUser.email || "",
-          ...(profile || {}) // Preserve existing fields if they were already there
+          _isFromFirestore: false,
+          ...(profile || {})
+        };
+        console.log('[AuthContext] Setting temp profile for:', currentUser.uid);
+        setProfile(tempProfile);
+
+        // CRITICAL: Start the real-time listener IMMEDIATELY — before any async work.
+        // This ensures coin/profile updates from webhooks are never missed while
+        // checkDailyLoginReward is awaiting a server round-trip.
+        unsubscribeProfile = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+
+            // AUTO-FIX: If Firestore doc is missing basic info but Google has it, sync it now
+            if (!data.name && currentUser.displayName) {
+              console.log('[AuthContext] syncing Google display name to missing Firestore profile');
+              try {
+                const { updateDoc } = await import('firebase/firestore');
+                await updateDoc(doc(db, 'users', currentUser.uid), {
+                  name: currentUser.displayName,
+                  email: currentUser.email,
+                  updatedAt: new Date().toISOString()
+                });
+                // Listener will fire again with the new name
+              } catch (e) {
+                console.warn('Failed to auto-sync Google name:', e);
+              }
+            }
+
+            const profileData = { ...docSnap.data(), _isFromFirestore: true };
+            console.log('[AuthContext] Profile update received from Firestore');
+            setProfile(profileData);
+          } else {
+            console.log('[AuthContext] Profile document does not exist yet. Needs Onboarding.');
+            setProfile(null);
+          }
+          setLoading(false);
+        }, (err) => {
+          console.error('Error in profile listener:', err);
+          setLoading(false);
         });
 
-        try {
-          // Check and award daily login reward
-          const rewardResult = await checkDailyLoginReward(currentUser.uid);
-          if (rewardResult.awarded) {
-            console.log(`[AuthContext] Awarded ${rewardResult.coins} coins for daily login`);
-          }
-
-          // Use real-time listener for profile to avoid race conditions
-          unsubscribeProfile = onSnapshot(doc(db, 'users', currentUser.uid), async (docSnap) => {
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              
-              // AUTO-FIX: If Firestore doc is missing basic info but Google has it, sync it now
-              if (!data.name && currentUser.displayName) {
-                console.log('[AuthContext] syncing Google display name to missing Firestore profile');
-                try {
-                  const { updateDoc } = await import('firebase/firestore');
-                  await updateDoc(doc(db, 'users', currentUser.uid), {
-                    name: currentUser.displayName,
-                    email: currentUser.email,
-                    updatedAt: new Date().toISOString()
-                  });
-                  // Note: listener will fire again with the new name
-                } catch (e) {
-                  console.warn('Failed to auto-sync Google name:', e);
-                }
-              }
-              
-              console.log('[AuthContext] Profile update received:', data.name || 'No name');
-              setProfile(data);
-            } else {
-              console.log('[AuthContext] Profile document does not exist yet. Creating basic profile if Google user...');
-              
-              // AUTO-CREATE: For new Google users, create the basic profile and coins instantly
-              if (currentUser.displayName) {
-                 try {
-                    const { setDoc } = await import('firebase/firestore');
-                    await setDoc(doc(db, 'users', currentUser.uid), {
-                      uid: currentUser.uid,
-                      name: currentUser.displayName,
-                      email: currentUser.email,
-                      coins: 25,
-                      createdAt: new Date().toISOString(),
-                      updatedAt: new Date().toISOString()
-                    }, { merge: true });
-                 } catch (e) {
-                   console.warn('Failed to auto-create Google profile:', e);
-                 }
-              }
-              setProfile(null);
+        // Run daily login reward check in the background — does NOT block listener setup.
+        // Uses getDocFromServer (in coinService) to avoid stale-cache coin resets.
+        checkDailyLoginReward(currentUser.uid)
+          .then(rewardResult => {
+            if (rewardResult.awarded) {
+              console.log(`[AuthContext] Awarded ${rewardResult.coins} coins for daily login`);
             }
-            setLoading(false);
-          }, (err) => {
-            console.error('Error in profile listener:', err);
-            setLoading(false);
-          });
+          })
+          .catch(err => console.error('Error in daily login reward:', err));
 
-        } catch (err) {
-          console.error('Error initializing user profile:', err);
-          setProfile(null);
-          setLoading(false);
-        }
       } else {
         setProfile(null);
         setLoading(false);
@@ -175,6 +161,9 @@ export const AuthProvider = ({ children }) => {
     if (!user || !user.uid) return null;
     try {
       const userProfile = await getUserProfile(user.uid);
+      if (userProfile) {
+        userProfile._isFromFirestore = true;
+      }
       setProfile(userProfile || null);
       return userProfile;
     } catch (err) {
@@ -258,11 +247,12 @@ export const AuthProvider = ({ children }) => {
     signInWithGoogle,
     logout,
     getToken,
-    refreshProfile,
     isAuthenticated: !!user,
-    // Very resilient logic: Anyone in the database with a name OR email is allowed in.
-    // This solves the 'Trapped in Onboarding' issue for Google and legacy accounts.
-    isProfileComplete: !!profile?.name || !!profile?.email,
+    // A user is considered "complete" if they have a confirmed Firestore document
+    // and profileComplete flag. This ensures all users go through onboarding.
+    isProfileComplete: !!profile && profile._isFromFirestore && profile.profileComplete === true,
+    loading,
+    refreshProfile
   };
 
   return (

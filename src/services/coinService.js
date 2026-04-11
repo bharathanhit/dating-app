@@ -1,5 +1,5 @@
 import { db } from '../config/firebase.js';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, orderBy, limit, getDocs, onSnapshot, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, setDoc, updateDoc, collection, addDoc, query, orderBy, limit, getDocs, onSnapshot, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { functions } from '../config/firebase.js';
 import { httpsCallable } from 'firebase/functions';
 
@@ -141,48 +141,42 @@ export const deductCoins = async (userId, amount, reason = 'manual') => {
 export const checkDailyLoginReward = async (userId) => {
   try {
     const userDocRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userDocRef);
-    
+
+    // IMPORTANT: This function must NEVER touch the `coins` field.
+    // Coin initialization only happens once during account creation (signup flow).
+    // Writing coins: 25 here would overwrite any payment credits the user earned.
+
+    // Check if user already logged in today — just track date, nothing else.
+    const userDoc = await getDocFromServer(userDocRef).catch(async (err) => {
+      console.warn('[coinService] Server fetch failed, using cache:', err.message);
+      return getDoc(userDocRef);
+    });
+
     if (!userDoc.exists()) {
       console.error('[coinService] User not found for daily login reward');
       return { awarded: false, coins: 0 };
     }
-    
+
     const userData = userDoc.data();
     const lastLoginDate = userData.lastLoginDate;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-    
-    // Initialize coins field if it doesn't exist (for existing users who didn't get their starting bonus)
-    if (userData.coins === undefined || userData.coins === null) {
-      console.log('[coinService] Initializing coins for existing user to 25');
-      await updateDoc(userDocRef, {
-        coins: 25,
-        lastLoginDate: null,
-        updatedAt: serverTimestamp()
-      });
-      return { awarded: false, coins: 25 };
-    }
-    
-    // Check if user already logged in today
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Already checked in today — skip
     if (lastLoginDate === today) {
-      console.log('[coinService] User already received daily login reward today');
+      console.log('[coinService] Already logged in today, skipping.');
       return { awarded: false, coins: 0 };
     }
-    
-    // Award daily login bonus
-    // const DAILY_LOGIN_REWARD = 20;
-    // await addCoins(userId, DAILY_LOGIN_REWARD, 'daily_login');
-    
-    // Update last login date (still useful for tracking activity)
+
+    // Update last login date only — DO NOT touch coins
     await updateDoc(userDocRef, {
       lastLoginDate: today,
       updatedAt: serverTimestamp()
     });
-    
-    console.log(`[coinService] Updated last login date for user ${userId} (No daily reward)`);
+
+    console.log(`[coinService] Updated lastLoginDate for ${userId}`);
     return { awarded: false, coins: 0 };
   } catch (error) {
-    console.error('Error checking daily login reward:', error);
+    console.error('Error in checkDailyLoginReward:', error);
     return { awarded: false, coins: 0 };
   }
 };

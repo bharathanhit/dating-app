@@ -86,7 +86,7 @@ const SwipeableProfileCard = ({ profile, onLike, onPass }) => {
 };
 
 const ProfilePage = () => {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: '', bio: '', interests: [], location: '' });
@@ -101,17 +101,19 @@ const ProfilePage = () => {
   const [tempFile, setTempFile] = useState(null); // To store original file if needed, or just flow it through
 
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loadingLocal, setLoadingLocal] = useState(false); // Renamed to avoid collision with loading from sense
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
-  // Redirect to onboarding if no profile exists
+  // Note: Redirection to onboarding is primarily handled by ProtectedOnboardingRoute.
+  // We only keep a safety check here that respects the loading state.
   useEffect(() => {
-    if (!profile && user) {
+    if (!loading && !profile && user) {
+      console.log('[ProfilePage] No profile found and loading is done, redirecting to onboarding');
       navigate('/onboarding', { replace: true });
     }
-  }, [profile, user, navigate]);
+  }, [profile, user, loading, navigate]);
 
   // Initialize form from profile when entering edit mode
   const startEdit = () => {
@@ -209,7 +211,7 @@ const ProfilePage = () => {
       return;
     }
 
-    setLoading(true);
+    setLoadingLocal(true);
     setError('');
 
     try {
@@ -267,7 +269,7 @@ const ProfilePage = () => {
       }
       setError(msg);
     } finally {
-      setLoading(false);
+      setLoadingLocal(false);
       setUploadProgress(0);
     }
   };
@@ -505,10 +507,10 @@ const ProfilePage = () => {
 
                   {editing ? (
                     <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button variant="contained" onClick={handleSave} disabled={loading}>
-                        {loading ? <CircularProgress size={20} /> : 'Save Changes'}
+                      <Button variant="contained" onClick={handleSave} disabled={loadingLocal}>
+                        {loadingLocal ? <CircularProgress size={20} /> : 'Save Changes'}
                       </Button>
-                      <Button variant="outlined" onClick={cancelEdit} disabled={loading}>Cancel</Button>
+                      <Button variant="outlined" onClick={cancelEdit} disabled={loadingLocal}>Cancel</Button>
                     </Box>
                   ) : null}
 

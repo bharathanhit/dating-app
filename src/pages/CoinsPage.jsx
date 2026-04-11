@@ -12,7 +12,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../config/firebase';
 
 const CoinsPage = () => {
-    const { user, coins } = useAuth();
+    const { user, profile, coins } = useAuth();
 
     const navigate = useNavigate();
     const theme = useTheme();
@@ -86,6 +86,7 @@ const CoinsPage = () => {
         const params = new URLSearchParams(window.location.search);
         const paymentId = params.get('razorpay_payment_id');
         const paymentStatus = params.get('razorpay_payment_link_status');
+        const signature = params.get('razorpay_signature');
 
         if (paymentId && user && !verifying) {
             // Check if we have a pending purchase in local storage
@@ -108,6 +109,7 @@ const CoinsPage = () => {
                     verifyPayment({
                         razorpay_payment_id: paymentId,
                         razorpay_order_id: pkgData.orderId,
+                        razorpay_signature: signature,
                         userId: user.uid,
                         coinsAmount: pkgData.amount
                     })
@@ -151,13 +153,20 @@ const CoinsPage = () => {
             // 1. Create Order via Cloud Function
             const createOrder = httpsCallable(functions, 'createRazorpayOrder');
             const result = await createOrder({
-                amount: pkg.price.replace('₹', ''), 
+                amount: Math.round(parseFloat(pkg.price.replace('₹', '')) * 100), // Send in paise
                 currency: 'INR',
                 packageId: pkg.id,
                 coinsAmount: pkg.amount
             });
 
+            if (!result.data.success) {
+                throw new Error(result.data.error || "Failed to create order");
+            }
+
             const { order } = result.data;
+            if (!order || !order.id) {
+                throw new Error("Invalid order response from server");
+            }
             const order_id = order.id;
             const razorpay_key = "rzp_live_SZ2hAjWVwfPAA5"; // Shared key
             
@@ -178,8 +187,8 @@ const CoinsPage = () => {
                 description: `Purchase ${pkg.name}`,
                 order_id: order_id,
                 prefill: {
-                    name: user.displayName || "",
-                    email: user.email || "",
+                    name: profile?.name || user?.displayName || "",
+                    email: profile?.email || user?.email || "",
                     contact: user.phoneNumber || ""
                 },
                 notes: {

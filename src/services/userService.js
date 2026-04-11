@@ -1,5 +1,6 @@
-import { db } from '../config/firebase.js';
+import { db, auth } from '../config/firebase.js';
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, deleteDoc, onSnapshot, addDoc } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
 
 
 // Create or update user profile
@@ -55,6 +56,16 @@ export const createUserProfile = async (userId, profileData) => {
     }
 
     await setDoc(userDocRef, saveData, { merge: true });
+    
+    // Sync Firebase Auth displayName if name was updated
+    if (dataToSave.name && auth.currentUser && auth.currentUser.uid === userId) {
+      try {
+        await updateProfile(auth.currentUser, { displayName: dataToSave.name });
+      } catch (authErr) {
+        console.warn("Failed to update Firebase Auth displayName", authErr);
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Error creating user profile:', error);
@@ -86,6 +97,16 @@ export const updateUserProfile = async (userId, profileData) => {
       ...profileData,
       updatedAt: new Date().toISOString(),
     });
+
+    // Sync Firebase Auth displayName if name was updated
+    if (profileData.name && auth.currentUser && auth.currentUser.uid === userId) {
+      try {
+        await updateProfile(auth.currentUser, { displayName: profileData.name });
+      } catch (authErr) {
+        console.warn("Failed to update Firebase Auth displayName", authErr);
+      }
+    }
+
     return true;
   } catch (error) {
     console.error('Error updating user profile:', error);
