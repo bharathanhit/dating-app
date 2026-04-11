@@ -33,6 +33,6 @@ export const storage = getStorage(app);
 export const realtimeDb = getDatabase(app);
 
 // Initialize Cloud Functions
-export const functions = getFunctions(app);
+export const functions = getFunctions(app, 'us-central1');
 
 export default app;

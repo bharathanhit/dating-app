@@ -3,11 +3,13 @@ import { useState, useEffect } from 'react';
 import { Container, Typography, Box, Card, CardContent, Button, Grid, Paper, Divider, CircularProgress, Alert, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, useMediaQuery, useTheme } from '@mui/material';
 import { MonetizationOn, CheckCircle, History, Stars } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { getCoinTransactions } from '../services/coinService';
+import { getCoinTransactions, addCoins } from '../services/coinService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead';
 import SuccessAnimation from '../components/SuccessAnimation';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../config/firebase';
 
 const CoinsPage = () => {
     const { user, coins } = useAuth();
@@ -31,33 +33,30 @@ const CoinsPage = () => {
             id: 1,
             name: '10 Coins',
             amount: 10,
-            price: '₹10',
+            price: '₹1',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            paymentLink: 'https://rzp.io/rzp/RNWCMZp'
         },
         {
             id: 2,
             name: '25 Coins',
             amount: 25,
-            price: '₹20',
+            price: '₹2',
             priceColor: '#FFD700',
             originalPrice: '₹30',
-            discount: '33% OFF',
+            discount: '93% OFF',
             popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-            paymentLink: 'https://rzp.io/rzp/sgyOTvh'
         },
         {
             id: 3,
             name: '65 Coins',
             amount: 65,
-            price: '₹50',
+            price: '₹3',
             originalPrice: '₹80',
-            discount: '38% OFF',
+            discount: '96% OFF',
             popular: true,
             gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)',
-            paymentLink: 'https://rzp.io/rzp/WpzrpKUf'
         },
     ];
 
@@ -82,45 +81,166 @@ const CoinsPage = () => {
         fetchTransactions();
     }, [user, navigate]);
 
-    // DEBUG: Log URL params on mount/update
+    // DEBUG: Log URL params on mount/update and Handle Payment Redirects
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        console.log("CoinsPage URL Params:", Object.fromEntries(params.entries()));
-    }, [window.location.search]);
+        const paymentId = params.get('razorpay_payment_id');
+        const paymentStatus = params.get('razorpay_payment_link_status');
+
+        if (paymentId && user && !verifying) {
+            // Check if we have a pending purchase in local storage
+            const pendingPurchase = localStorage.getItem('pending_coin_purchase');
+            
+            if (pendingPurchase) {
+                setVerifying(true);
+                try {
+                    const pkgData = JSON.parse(pendingPurchase);
+
+                    if (paymentStatus === 'failed') {
+                        setSnackbar({ open: true, severity: 'error', message: 'Payment failed or was cancelled.' });
+                        localStorage.removeItem('pending_coin_purchase');
+                        setVerifying(false);
+                        return;
+                    }
+
+                    // Securely verify and credit coins using Cloud Function
+                    const verifyPayment = httpsCallable(functions, 'verifyRazorpayPayment');
+                    verifyPayment({
+                        razorpay_payment_id: paymentId,
+                        razorpay_order_id: pkgData.orderId,
+                        userId: user.uid,
+                        coinsAmount: pkgData.amount
+                    })
+                    .then((verificationResult) => {
+                        if (verificationResult.data.success) {
+                            setCreditedAmount(pkgData.amount);
+                            setShowSuccess(true);
+                            setShowPop(true);
+                            setTimeout(() => setShowPop(false), 3000);
+                            
+                            localStorage.removeItem('pending_coin_purchase');
+                            window.history.replaceState({}, document.title, window.location.pathname);
+                            getCoinTransactions(user.uid, 20).then(setTransactions);
+                            setSnackbar({ open: true, severity: 'success', message: 'Payment verified and coins credited!' });
+                        } else {
+                            throw new Error(verificationResult.data.error || "Verification failed");
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Verification failed:", err);
+                        setSnackbar({ open: true, severity: 'error', message: 'Payment verified but crediting failed. Please contact support.' });
+                    }).finally(() => setVerifying(false));
+
+                } catch (e) {
+                    console.error("Error parsing pending purchase", e);
+                    setVerifying(false);
+                }
+            }
+        }
+    }, [window.location.search, user]);
 
 
-    const handlePurchase = (pkg) => {
-        console.log("Purchasing package:", pkg.name, "with link:", pkg.paymentLink);
+    const handlePurchase = async (pkg) => {
         if (!user) {
             navigate('/login');
             return;
         }
 
-        if (pkg.paymentLink) {
-            // Append userId and package details to the payment link as notes
-            // Razorpay Payment Pages/Links support prefilling notes via query params
-            const separator = pkg.paymentLink.includes('?') ? '&' : '?';
-            // Brute-force injection of User ID into pre-fillable fields and notes
-            const variations = [
-                `userId=${user.uid}`,
-                `user_id=${user.uid}`,
-                `userID=${user.uid}`,
-                `User ID=${user.uid}`,
-                `notes[userId]=${user.uid}`,
-                `notes[coinsAmount]=${pkg.amount}`,
-                `notes[packageId]=${pkg.id}`
-            ];
+        setVerifying(true);
+        try {
+            // 1. Create Order via Cloud Function
+            const createOrder = httpsCallable(functions, 'createRazorpayOrder');
+            const result = await createOrder({
+                amount: pkg.price.replace('₹', ''), 
+                currency: 'INR',
+                packageId: pkg.id,
+                coinsAmount: pkg.amount
+            });
+
+            const { order } = result.data;
+            const order_id = order.id;
+            const razorpay_key = "rzp_live_SZ2hAjWVwfPAA5"; // Shared key
             
-            const paymentUrl = `${pkg.paymentLink}${separator}${variations.join('&')}`;
-            
-            console.log("Redirecting to Razorpay with metadata...");
-            window.open(paymentUrl, '_blank');
-        } else {
+            // 1.5 Store pending purchase in case of redirect
+            localStorage.setItem('pending_coin_purchase', JSON.stringify({
+                packageId: pkg.id,
+                amount: pkg.amount,
+                orderId: order_id,
+                timestamp: Date.now()
+            }));
+
+            // 2. Open Razorpay Checkout Modal
+            const options = {
+                key: razorpay_key || "rzp_live_SZ2hAjWVwfPAA5",
+                amount: Math.round(pkg.price.replace('₹', '') * 100),
+                currency: "INR",
+                name: "BiChat Coins",
+                description: `Purchase ${pkg.name}`,
+                order_id: order_id,
+                prefill: {
+                    name: user.displayName || "",
+                    email: user.email || "",
+                    contact: user.phoneNumber || ""
+                },
+                notes: {
+                    userId: user.uid,
+                    packageId: pkg.id,
+                    coinsAmount: pkg.amount
+                },
+                theme: {
+                    color: "#754bff"
+                },
+                handler: async function (response) {
+                    // 3. Verify Payment via Cloud Function
+                    setVerifying(true);
+                    try {
+                        const verifyPayment = httpsCallable(functions, 'verifyRazorpayPayment');
+                        const verificationResult = await verifyPayment({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            userId: user.uid,
+                            packageId: pkg.id,
+                            coinsAmount: pkg.amount
+                        });
+
+                        if (verificationResult.data.success) {
+                            setCreditedAmount(pkg.amount);
+                            setShowSuccess(true);
+                            setShowPop(true);
+                            setTimeout(() => setShowPop(false), 3000);
+                            
+                            // Refresh transaction list
+                            getCoinTransactions(user.uid, 20).then(setTransactions);
+                            setSnackbar({ open: true, severity: 'success', message: 'Coins credited successfully!' });
+                        } else {
+                            throw new Error(verificationResult.data.error || "Verification failed");
+                        }
+                    } catch (err) {
+                        console.error("Verification failed:", err);
+                        setSnackbar({ open: true, severity: 'error', message: 'Payment verified but crediting failed. Please contact support.' });
+                    } finally {
+                        setVerifying(false);
+                    }
+                },
+                modal: {
+                    ondismiss: function() {
+                        setVerifying(false);
+                    }
+                }
+            };
+
+            const rzp = new window.Razorpay(options);
+            rzp.open();
+
+        } catch (error) {
+            console.error("Error initiating purchase:", error);
             setSnackbar({
                 open: true,
-                message: "Payment link not configured.",
-                severity: "warning"
+                message: error.message || "Failed to start payment.",
+                severity: "error"
             });
+            setVerifying(false);
         }
     };
 

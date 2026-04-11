@@ -4,7 +4,6 @@
 [build]
   publish = "dist"
   command = "npm run build"
-  functions = "netlify/functions"
 
 # SPA routing - redirect all routes to index.html except static files
 [[redirects]]

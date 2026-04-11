@@ -265,38 +265,6 @@ export const initializeUserCoins = async (userId) => {
   }
 };
 
-/**
- * Submit payment proof for manual verification
- * @param {string} userId - User ID
- * @param {number} amount - Amount of coins
- * @param {string} packageName - Package name
- * @param {number} price - Price
- * @param {string} packageId - Package ID
- * @param {string} transactionId - User submitted UTR/Reference ID
- * @returns {Promise<object>} Result
- */
-export const submitPaymentProof = async (userId, amount, packageName, price, packageId, transactionId) => {
-  try {
-    const submitProofFn = httpsCallable(functions, 'submitPaymentProof');
-    
-    // Parse price to number
-    const numericPrice = typeof price === 'string' ? parseFloat(price.replace(/[^0-9.]/g, '')) : price;
-
-    const result = await submitProofFn({
-      amount: amount,
-      packageName: packageName,
-      price: numericPrice,
-      packageId: packageId || `pkg_${amount}_coins`,
-      transactionId: transactionId
-    });
-
-    console.log(`[coinService] Submitted payment proof for ${transactionId}`);
-    return result.data; 
-  } catch (error) {
-    console.error('Error submitting payment proof:', error);
-    throw error;
-  }
-};
 
 /**
  * Unlock "Who Liked Me" feature for 1 week
