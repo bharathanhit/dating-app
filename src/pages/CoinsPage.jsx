@@ -33,7 +33,7 @@ const CoinsPage = () => {
             id: 1,
             name: '10 Coins',
             amount: 10,
-            price: '₹1',
+            price: '₹10',
             popular: false,
             gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         },
@@ -41,20 +41,20 @@ const CoinsPage = () => {
             id: 2,
             name: '25 Coins',
             amount: 25,
-            price: '₹2',
+            price: '₹20',
             priceColor: '#FFD700',
             originalPrice: '₹30',
-            discount: '93% OFF',
+            discount: '33% OFF',
             popular: false,
             gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
         },
         {
             id: 3,
-            name: '65 Coins',
-            amount: 65,
-            price: '₹3',
+            name: '75 Coins',
+            amount: 75,
+            price: '₹50',
             originalPrice: '₹80',
-            discount: '96% OFF',
+            discount: '37% OFF',
             popular: true,
             gradient: 'linear-gradient(43deg, #4158D0 0%, #C850C0 46%, #FFCC70 100%)',
         },
@@ -288,7 +288,7 @@ const CoinsPage = () => {
             <SEOHead
                 title="Buy Coins | BiChat"
                 description="Purchase coins to like profiles and unlock premium features on BiChat."
-                keywords="buy coins, purchase coins, dating app coins, BiChat coins"
+                keywords="buy coins, purchase coins, app coins, BiChat coins"
                 url="https://bi-chat.online/coins"
             />
 

@@ -693,7 +693,7 @@ const MessagesPageV2 = () => {
   return (
     <>
       <SEOHead
-        title="Messages | BiChat Dating"
+        title="Messages | BiChat"
         description="Chat with your matches on BiChat"
         noindex={true}
       />

@@ -125,7 +125,7 @@ const LikesPage = () => {
   return (
     <>
       <SEOHead
-        title="Likes | BiChat Dating"
+        title="Likes | BiChat"
         description="See who you like and who likes you on BiChat"
         noindex={true}
       />

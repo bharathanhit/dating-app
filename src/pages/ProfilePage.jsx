@@ -291,8 +291,8 @@ const ProfilePage = () => {
   return (
     <>
       <SEOHead
-        title="My Profile | BiChat Dating"
-        description="Manage your BiChat dating profile"
+        title="My Profile | BiChat"
+        description="Manage your BiChat profile"
         noindex={true}
       />
       <Container maxWidth="lg" sx={{ pb: { xs: 12, sm: 10 } }}>

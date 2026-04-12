@@ -71,7 +71,7 @@ const ContactPage = () => {
                                         </svg>
                                     </Box>
                                     <Typography variant="body2" fontWeight={500}>
-                                        +91 7339310823
+                                        +91 9655889426
                                     </Typography>
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>

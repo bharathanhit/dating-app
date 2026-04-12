@@ -7,9 +7,9 @@ import PropTypes from 'prop-types';
  * Supports Open Graph and Twitter Card tags for social media sharing
  */
 const SEOHead = ({
-    title = 'BiChat - Find Your Perfect Match | Modern Dating & Connection App',
-    description = 'Discover meaningful connections on BiChat. The best modern dating app to browse profiles, chat with matches, and find your perfect partner safely.',
-    keywords = 'dating app, online dating, find love, relationships, matches, singles, dating site, meet people, romance, connections, BiChat, private chat, secure dating',
+    title = 'BiChat - Find Your Perfect Match | Modern Connection App',
+    description = 'Discover meaningful connections on BiChat. The best modern connection app to browse profiles, chat with matches, and find your perfect partner safely.',
+    keywords = 'connection app, online connections, find love, relationships, matches, meet people, romance, connections, BiChat, private chat, secure connections',
     image = 'https://bi-chat.online/og-image-optimized.png',
     url = 'https://bi-chat.online/',
     type = 'website',

@@ -64,7 +64,7 @@ const LoginPage = () => {
       <SEOHead
         title="Login to BiChat | Find Your Perfect Match"
         description="Sign in to your BiChat account to browse profiles, chat with matches, and find meaningful connections."
-        keywords="login, sign in, dating app login, BiChat login"
+        keywords="login, sign in, app login, BiChat login"
         url="https://bi-chat.online/login"
       />
       <Container maxWidth="sm" sx={{ pb: { xs: 12, sm: 10 } }}>

@@ -1,6 +1,6 @@
-# BIXSOL - Dating Website
+# BiChat - Modern Connection Platform
 
-A modern, responsive dating application built with React, Material-UI, and Firebase Authentication.
+A modern, responsive social application built with React, Material-UI, and Firebase Authentication.
 
 ## Features
 
@@ -235,5 +235,4 @@ This project is open source and available under the MIT License.
 
 ---
 
-**Happy Dating! 💕**
-# dating-app
+**Happy Connecting! 💕**

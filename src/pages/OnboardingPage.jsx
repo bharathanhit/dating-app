@@ -42,7 +42,7 @@ const INTERESTS_LIST = [
 ];
 const LOOKING_FOR_OPTIONS = [
   { label: "Relationship", value: "relationship" },
-  { label: "Dating", value: "dating" },
+  { label: "Connections", value: "connections" },
   { label: "Casual", value: "casual" },
   { label: "Friends", value: "friends" },
 ];
@@ -416,7 +416,7 @@ export default function OnboardingPage() {
   return (
     <Container maxWidth="sm" sx={{ display: "flex", flexDirection: "column", justifyContent: "center", minHeight: "100vh", py: 4, background: "linear-gradient(135deg, #e6d6ff 0%, #fbd6ff 100%)" }}>
       <Box sx={{ textAlign: "center", mb: 3 }}>
-        <img src={romanticLogo} alt="Dating Logo" style={{ width: 70, marginBottom: 10 }} loading="lazy" />
+        <img src={romanticLogo} alt="Application Logo" style={{ width: 70, marginBottom: 10 }} loading="lazy" />
         <Typography variant="h4" sx={{ fontWeight: 600, fontSize: "2rem", color: "#340e76ff" }}>Complete Your Profile</Typography>
         <Typography variant="body2" color="textSecondary">Help us get to know you better</Typography>
       </Box>

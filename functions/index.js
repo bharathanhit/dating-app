@@ -27,9 +27,9 @@ const razorpay = new Razorpay({
 
 // Coin amount fallback map (paise → coins)
 const COIN_MAP = {
-    100: 10,
-    200: 25,
-    300: 65,
+    1000: 10,
+    2000: 25,
+    5000: 75,
 };
 
 /**

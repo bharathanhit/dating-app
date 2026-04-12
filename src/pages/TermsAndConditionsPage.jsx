@@ -135,7 +135,7 @@ const TermsAndConditionsPage = () => {
                                 GRIEVANCE REDRESSAL
                             </Typography>
                             <p>
-                                You agree that if you have any question or complaint with regard to any product and/or service availed on our Platform, or pertaining to the Transaction, including but not limited to, double debit of Transaction Amount, fraudulent Transaction, unauthorized Transaction, refund requests, etc., you may reach out to us at <strong>bixsolcompany@gmail.com</strong> or <strong>+91 7339310823</strong>.
+                                You agree that if you have any question or complaint with regard to any product and/or service availed on our Platform, or pertaining to the Transaction, including but not limited to, double debit of Transaction Amount, fraudulent Transaction, unauthorized Transaction, refund requests, etc., you may reach out to us at <strong>bixsolcompany@gmail.com</strong> or <strong>+91 9655889426</strong>.
                             </p>
 
                             <Typography variant="h6" sx={{ fontWeight: 700, mt: 3, mb: 1 }}>
