@@ -24,6 +24,7 @@ import {
   DialogActions,
   Button,
   Skeleton,
+  CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -41,7 +42,8 @@ import {
   listenForUserStatus,
   updateMessageAudioStatus,
   setAudioTrust,
-  checkAudioTrust
+  checkAudioTrust,
+  deleteMessage
 } from '../services/chatServiceV2';
 import { getUserProfile, getBlockedUsers, blockUser, unblockUser, isUserBlocked, reportUser } from "../services/userService";
 import { getValidImageUrl } from "../utils/imageUtils";
@@ -126,8 +128,8 @@ const MessagesPageV2 = () => {
 
 
 
-  // Audio Recording State
   const [isRecording, setIsRecording] = useState(0); // 0: idle, 1: recording, 2: review
+  const [isSendingAudio, setIsSendingAudio] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -137,6 +139,10 @@ const MessagesPageV2 = () => {
   const audioPlayerRef = useRef(new Audio());
   const [audioBlobToReview, setAudioBlobToReview] = useState(null);
   const [isPlayingReview, setIsPlayingReview] = useState(false);
+
+  // Message Menu (for Unsend)
+  const [msgMenuAnchor, setMsgMenuAnchor] = useState(null);
+  const [selectedMsg, setSelectedMsg] = useState(null);
 
   const messagesEndRef = useRef(null);
 
@@ -421,7 +427,9 @@ const MessagesPageV2 = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      // Use a compatible MIME type if possible
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -434,13 +442,13 @@ const MessagesPageV2 = () => {
         // Stop all tracks to release microphone
         stream.getTracks().forEach(track => track.stop());
 
-        // Process the audio blob immediately
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // Process the audio blob
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
-        // Only send if we have data (and duration > 0 check optionally)
+        // Only send if we have data
         if (audioBlob.size > 0) {
           setAudioBlobToReview(audioBlob); // Store for review
-          setIsRecording(2); // Set state to recorded
+          setIsRecording(2); // Set state to review/ready to send
         } else {
           console.error("Audio blob was empty");
           alert("Recording failed: No audio data captured.");
@@ -465,51 +473,63 @@ const MessagesPageV2 = () => {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording === 1) {
-      mediaRecorderRef.current.stop();
       clearInterval(timerRef.current);
+      mediaRecorderRef.current.stop();
       // Logic moved to onstop
     }
   };
-
   const cancelRecording = () => {
-    if (mediaRecorderRef.current && (isRecording === 1 || isRecording === 2)) {
-      // If recording, stop it and clear tracks
-      if (mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.onstop = () => {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
-            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-          }
-        };
-        mediaRecorderRef.current.stop();
-      } else if (mediaRecorderRef.current.stream) {
-        // If already stopped but stream is active (e.g., after onstop but before user cancels review)
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      }
+    // Reset UI state first to ensure we aren't stuck
+    setIsRecording(0);
+    setAudioBlobToReview(null);
+    setIsPlayingReview(false);
+    clearInterval(timerRef.current);
+    setRecordingDuration(0);
 
-      clearInterval(timerRef.current);
-      audioChunksRef.current = [];
-      setAudioBlobToReview(null);
-      setIsRecording(0); // Reset to idle
-      setIsPlayingReview(false);
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause();
-        audioPlayerRef.current.src = '';
+    if (mediaRecorderRef.current) {
+      // If recording, stop it and clear tracks
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.onstop = null; // Clear previous handlers
+          mediaRecorderRef.current.stop();
+        }
+        if (mediaRecorderRef.current.stream) {
+          mediaRecorderRef.current.stream.getTracks().forEach(track => {
+            try { track.stop(); } catch (e) { console.warn("Error stopping track:", e); }
+          });
+        }
+      } catch (err) {
+        console.warn("Cleanup error in cancelRecording:", err);
       }
     }
-  };
 
+    audioChunksRef.current = [];
+    if (audioPlayerRef.current) {
+      try {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current.src = '';
+      } catch (e) {}
+    }
+  };
   const sendAudioMessage = async (audioBlob) => {
     if (!activeConv?.id || !user?.uid || !audioBlob) {
       console.error("Missing activeConv, user, or audioBlob", { activeConv, user, audioBlob });
       alert("Cannot send: Missing conversation, user details, or audio data.");
+      cancelRecording();
       return;
     }
 
     try {
+      setIsSendingAudio(true);
       console.log("Starting audio conversion...");
       // 1. Convert to Base64
       const base64Audio = await convertBlobToBase64(audioBlob);
       console.log("Audio converted. Length:", base64Audio.length);
+
+      // Simple size check (Firestore document limit ~1MB)
+      if (base64Audio.length > 900000) {
+        throw new Error("Recording is too large to send. Please try a shorter message (max ~30-40 seconds).");
+      }
 
       // 2. Check if I am trusted (one-time acceptance)
       let initialStatus = 'pending';
@@ -545,13 +565,16 @@ const MessagesPageV2 = () => {
 
       await sendMessage(activeConv.id, payload);
       console.log("Audio message sent successfully.");
-
-      // Reset audio state after sending
-      cancelRecording(); // This will clear blob, duration, and reset isRecording to 0
+      setIsSendingAudio(false);
+      cancelRecording(); // Reset UI state
 
     } catch (error) {
       console.error("Error sending audio message:", error);
       alert(`Failed to send audio message: ${error.message}`);
+      setIsSendingAudio(false);
+      // Even on error, we reset to avoid being stuck, but we might want the user to retry.
+      // For now, reset is safer than "stuck".
+      cancelRecording();
     }
   };
 
@@ -599,6 +622,27 @@ const MessagesPageV2 = () => {
       }
     } catch (error) {
       console.error("Error updating audio status:", error);
+    }
+  };
+
+  const handleMsgMenuOpen = (event, msg) => {
+    setMsgMenuAnchor(event.currentTarget);
+    setSelectedMsg(msg);
+  };
+
+  const handleMsgMenuClose = () => {
+    setMsgMenuAnchor(null);
+    setSelectedMsg(null);
+  };
+
+  const handleUnsend = async () => {
+    if (!activeConv?.id || !selectedMsg?.id) return;
+    try {
+      await deleteMessage(activeConv.id, selectedMsg.id);
+      handleMsgMenuClose();
+    } catch (err) {
+      console.error('Failed to unsend message:', err);
+      alert('Failed to unsend message. Please try again.');
     }
   };
 
@@ -697,6 +741,15 @@ const MessagesPageV2 = () => {
         description="Chat with your matches on BiChat"
         noindex={true}
       />
+      <style>
+        {`
+          @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+          }
+        `}
+      </style>
       <Container maxWidth={false} disableGutters sx={{ height: "100dvh", display: "flex", flexDirection: "column", bgcolor: "#f0f2f5" }}>
         {/* Header - Hide on mobile if in active conversation (chat view) */}
         {(!isMobile || !activeConv) && (
@@ -857,97 +910,132 @@ const MessagesPageV2 = () => {
 
                               {/* bubble */}
                               <Box sx={{ flex: 1, display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", px: 1 }}>
-                                <Box
-                                  sx={{
-                                    borderRadius: "18px",
-                                    px: m.type === 'audio' ? 1 : 2,
-                                    py: m.type === 'audio' ? 0.5 : 1,
-                                    maxWidth: "85%",
-                                    background: isMe ? IG_GRADIENT : "#fff",
-                                    color: isMe ? "#fff" : "#111",
-                                    boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",
-                                    border: isMe ? "none" : "none",
-                                  }}
-                                >
-                                  {m.type === 'audio' ? (
-                                    <Box sx={{ width: 200 }}>
-                                      {/* Audio Logic */}
-                                      {m.audioStatus === 'denied' ? (
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: 0.7 }}>
-                                          <Block fontSize="small" />
-                                          <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
-                                            Audio message denied
-                                          </Typography>
-                                        </Box>
-                                      ) : (
-                                        <>
-                                          {/* Show Player if Accepted OR Sender */}
-                                          {(m.audioStatus === 'accepted' || isMe) ? (
-                                            <Box>
-                                              {/* Waiting text removed as per request */}
-
-                                              {/* Wrapper to target shadow DOM controls */}
-                                              <Box sx={{
-                                                '& audio': { width: '100%', height: 28 }, // Compact height
-                                                '& audio::-webkit-media-controls-mute-button': { display: 'none !important' },
-                                                '& audio::-webkit-media-controls-volume-slider': { display: 'none !important' },
-                                                '& audio::-webkit-media-controls-volume-control-container': { display: 'none !important' },
-                                              }}>
-                                                <audio
-                                                  controls
-                                                  controlsList="nodownload noplaybackrate"
-                                                  src={m.audioUrl}
-                                                />
-                                              </Box>
-
-                                              {/* Show duration if available */}
-                                              {m.duration > 0 && (
-                                                <Typography variant="caption" sx={{ display: 'block', mt: 0, opacity: 0.8, textAlign: 'right', fontSize: '0.65rem' }}>
-                                                  {formatDuration(m.duration)}
-                                                </Typography>
-                                              )}
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                                    <Box
+                                      onContextMenu={(e) => {
+                                        if (isMe) {
+                                          e.preventDefault();
+                                          handleMsgMenuOpen(e, m);
+                                        }
+                                      }}
+                                      sx={{
+                                        borderRadius: "18px",
+                                        px: m.type === 'audio' ? 1 : 2,
+                                        py: m.type === 'audio' ? 0.5 : 1,
+                                        background: isMe ? IG_GRADIENT : "#fff",
+                                        color: isMe ? "#fff" : "#111",
+                                        boxShadow: isMe ? "0 4px 12px rgba(74,0,224,0.2)" : "0 1px 2px rgba(0,0,0,0.1)",
+                                        cursor: isMe ? 'pointer' : 'default',
+                                        position: 'relative'
+                                      }}
+                                      onClick={(e) => {
+                                        // On mobile/touch, a normal click might be preferred to trigger menu for sent messages
+                                        if (isMe && isMobile) {
+                                          handleMsgMenuOpen(e, m);
+                                        }
+                                      }}
+                                    >
+                                      {isMe && (
+                                        <IconButton
+                                          size="small"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleMsgMenuOpen(e, m);
+                                          }}
+                                          sx={{
+                                            position: 'absolute',
+                                            top: -10,
+                                            right: isMe ? -10 : 'auto',
+                                            left: !isMe ? -10 : 'auto',
+                                            bgcolor: 'white',
+                                            boxShadow: 1,
+                                            width: 20,
+                                            height: 20,
+                                            display: { xs: 'none', md: 'flex' }, // Hide by default on desktop, show only on hover if we had hover states, but for now just show menu logically
+                                            '&:hover': { bgcolor: '#f0f0f0' }
+                                          }}
+                                        >
+                                          <MoreVertIcon sx={{ fontSize: 14 }} />
+                                        </IconButton>
+                                      )}
+                                      {m.type === 'audio' ? (
+                                        <Box sx={{ width: 200 }}>
+                                          {/* Audio Logic */}
+                                          {m.audioStatus === 'denied' ? (
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, opacity: 0.7 }}>
+                                              <Block fontSize="small" />
+                                              <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                                Audio message denied
+                                              </Typography>
                                             </Box>
                                           ) : (
-                                            // Receiver View: Pending
-                                            <Box>
-                                              <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
-                                                🎤 Voice Message
-                                              </Typography>
-                                              <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Button
-                                                  variant="contained"
-                                                  size="small"
-                                                  color="success"
-                                                  startIcon={<Check />}
-                                                  onClick={() => handleAudioAction(m.id, 'accepted')}
-                                                  sx={{ flex: 1, fontSize: '0.75rem' }}
-                                                >
-                                                  Accept
-                                                </Button>
-                                                <Button
-                                                  variant="outlined"
-                                                  size="small"
-                                                  color="error"
-                                                  startIcon={<Block />}
-                                                  onClick={() => handleAudioAction(m.id, 'denied')}
-                                                  sx={{ flex: 1, fontSize: '0.75rem' }}
-                                                >
-                                                  Deny
-                                                </Button>
-                                              </Box>
-                                            </Box>
-                                          )}
-                                        </>
-                                      )}
-                                    </Box>
-                                  ) : (
-                                    <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
-                                  )}
+                                            <>
+                                              {/* Show Player if Accepted OR Sender */}
+                                              {(m.audioStatus === 'accepted' || isMe) ? (
+                                                <Box>
+                                                  {/* Wrapper to target shadow DOM controls */}
+                                                  <Box sx={{
+                                                    '& audio': { width: '100%', height: 28 }, // Compact height
+                                                    '& audio::-webkit-media-controls-mute-button': { display: 'none !important' },
+                                                    '& audio::-webkit-media-controls-volume-slider': { display: 'none !important' },
+                                                    '& audio::-webkit-media-controls-volume-control-container': { display: 'none !important' },
+                                                  }}>
+                                                    <audio
+                                                      controls
+                                                      controlsList="nodownload noplaybackrate"
+                                                      src={m.audioUrl}
+                                                    />
+                                                  </Box>
 
-                                  <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
-                                    {formatTime(m.createdAt ?? m.timestamp)}
-                                  </Typography>
-                                </Box>
+                                                  {/* Show duration if available */}
+                                                  {m.duration > 0 && (
+                                                    <Typography variant="caption" sx={{ display: 'block', mt: 0, opacity: 0.8, textAlign: 'right', fontSize: '0.65rem' }}>
+                                                      {formatDuration(m.duration)}
+                                                    </Typography>
+                                                  )}
+                                                </Box>
+                                              ) : (
+                                                // Receiver View: Pending
+                                                <Box>
+                                                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                                                    🎤 Voice Message
+                                                  </Typography>
+                                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                                    <Button
+                                                      variant="contained"
+                                                      size="small"
+                                                      color="success"
+                                                      startIcon={<Check />}
+                                                      onClick={() => handleAudioAction(m.id, 'accepted')}
+                                                      sx={{ flex: 1, fontSize: '0.75rem' }}
+                                                    >
+                                                      Accept
+                                                    </Button>
+                                                    <Button
+                                                      variant="outlined"
+                                                      size="small"
+                                                      color="error"
+                                                      startIcon={<Block />}
+                                                      onClick={() => handleAudioAction(m.id, 'denied')}
+                                                      sx={{ flex: 1, fontSize: '0.75rem' }}
+                                                    >
+                                                      Deny
+                                                    </Button>
+                                                  </Box>
+                                                </Box>
+                                              )}
+                                            </>
+                                          )}
+                                        </Box>
+                                      ) : (
+                                        <Typography sx={{ whiteSpace: "pre-wrap" }}>{m.text}</Typography>
+                                      )}
+
+                                      <Typography sx={{ fontSize: "0.7rem", color: isMe ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.5)", mt: 0.5, textAlign: "right" }}>
+                                        {formatTime(m.createdAt ?? m.timestamp)}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
                               </Box>
 
                               {/* spacer (balance) */}
@@ -999,9 +1087,18 @@ const MessagesPageV2 = () => {
                       </Typography>
                     </Box>
 
-                    {/* Right: Send */}
-                    <IconButton color="primary" onClick={stopRecording} sx={{ bgcolor: "primary.main", color: "#fff", '&:hover': { bgcolor: "primary.dark" } }}>
-                      <SendIcon />
+                    {/* Right: Send / Stop */}
+                    <IconButton 
+                      color="primary" 
+                      onClick={isRecording === 1 ? stopRecording : handleSendAudio} 
+                      disabled={isSendingAudio}
+                      sx={{ 
+                        bgcolor: isRecording === 1 ? "error.main" : "primary.main", 
+                        color: "#fff", 
+                        '&:hover': { bgcolor: isRecording === 1 ? "error.dark" : "primary.dark" } 
+                      }}
+                    >
+                      {isSendingAudio ? <CircularProgress size={24} color="inherit" /> : (isRecording === 1 ? <Stop /> : <SendIcon />)}
                     </IconButton>
                   </Box>
                 ) : (
@@ -1082,6 +1179,19 @@ const MessagesPageV2 = () => {
           onSubmit={handleReportSubmit}
           reportedUserName={otherProfile?.name}
         />
+        {/* Message Options Menu (Unsend) */}
+        <Menu
+          anchorEl={msgMenuAnchor}
+          open={Boolean(msgMenuAnchor)}
+          onClose={handleMsgMenuClose}
+          anchorOrigin={{ vertical: 'center', horizontal: isMobile ? 'center' : 'right' }}
+          transformOrigin={{ vertical: 'center', horizontal: isMobile ? 'center' : 'left' }}
+        >
+          <MenuItem onClick={handleUnsend} sx={{ color: 'error.main', display: 'flex', gap: 1 }}>
+            <DeleteOutline fontSize="small" />
+            Unsend
+          </MenuItem>
+        </Menu>
       </Container>
     </>
   );

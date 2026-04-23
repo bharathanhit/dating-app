@@ -91,7 +91,7 @@ const CoinsPage = () => {
         if (paymentId && user && !verifying) {
             // Check if we have a pending purchase in local storage
             const pendingPurchase = localStorage.getItem('pending_coin_purchase');
-            
+
             if (pendingPurchase) {
                 setVerifying(true);
                 try {
@@ -113,25 +113,25 @@ const CoinsPage = () => {
                         userId: user.uid,
                         coinsAmount: pkgData.amount
                     })
-                    .then((verificationResult) => {
-                        if (verificationResult.data.success) {
-                            setCreditedAmount(pkgData.amount);
-                            setShowSuccess(true);
-                            setShowPop(true);
-                            setTimeout(() => setShowPop(false), 3000);
-                            
-                            localStorage.removeItem('pending_coin_purchase');
-                            window.history.replaceState({}, document.title, window.location.pathname);
-                            getCoinTransactions(user.uid, 20).then(setTransactions);
-                            setSnackbar({ open: true, severity: 'success', message: 'Payment verified and coins credited!' });
-                        } else {
-                            throw new Error(verificationResult.data.error || "Verification failed");
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Verification failed:", err);
-                        setSnackbar({ open: true, severity: 'error', message: 'Payment verified but crediting failed. Please contact support.' });
-                    }).finally(() => setVerifying(false));
+                        .then((verificationResult) => {
+                            if (verificationResult.data.success) {
+                                setCreditedAmount(pkgData.amount);
+                                setShowSuccess(true);
+                                setShowPop(true);
+                                setTimeout(() => setShowPop(false), 3000);
+
+                                localStorage.removeItem('pending_coin_purchase');
+                                window.history.replaceState({}, document.title, window.location.pathname);
+                                getCoinTransactions(user.uid, 20).then(setTransactions);
+                                setSnackbar({ open: true, severity: 'success', message: 'Payment verified and coins credited!' });
+                            } else {
+                                throw new Error(verificationResult.data.error || "Verification failed");
+                            }
+                        })
+                        .catch(err => {
+                            console.error("Verification failed:", err);
+                            setSnackbar({ open: true, severity: 'error', message: 'Payment verified but crediting failed. Please contact support.' });
+                        }).finally(() => setVerifying(false));
 
                 } catch (e) {
                     console.error("Error parsing pending purchase", e);
@@ -169,7 +169,7 @@ const CoinsPage = () => {
             }
             const order_id = order.id;
             const razorpay_key = "rzp_live_SZ2hAjWVwfPAA5"; // Shared key
-            
+
             // 1.5 Store pending purchase in case of redirect
             localStorage.setItem('pending_coin_purchase', JSON.stringify({
                 packageId: pkg.id,
@@ -218,7 +218,7 @@ const CoinsPage = () => {
                             setShowSuccess(true);
                             setShowPop(true);
                             setTimeout(() => setShowPop(false), 3000);
-                            
+
                             // Refresh transaction list
                             getCoinTransactions(user.uid, 20).then(setTransactions);
                             setSnackbar({ open: true, severity: 'success', message: 'Coins credited successfully!' });
@@ -233,7 +233,7 @@ const CoinsPage = () => {
                     }
                 },
                 modal: {
-                    ondismiss: function() {
+                    ondismiss: function () {
                         setVerifying(false);
                     }
                 }
@@ -505,7 +505,9 @@ const CoinsPage = () => {
                                                     />
                                                 </TableCell>
                                                 <TableCell sx={{ textTransform: 'capitalize' }}>
-                                                    {txn.reason?.replace(/_/g, ' ') || 'N/A'}
+                                                    {(txn.reason === 'razorpay_webhook' || txn.reason === 'razorpay_checkout' || txn.reason === 'coins_purchase')
+                                                        ? 'coin purchase'
+                                                        : (txn.reason?.replace(/_/g, ' ') || 'N/A')}
                                                 </TableCell>
                                                 <TableCell align="right" sx={{ fontWeight: 700, color: txn.type === 'credit' ? 'success.main' : 'error.main' }}>
                                                     {getTransactionIcon(txn.type)}{txn.amount}

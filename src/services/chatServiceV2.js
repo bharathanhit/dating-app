@@ -12,7 +12,8 @@ import {
   where, 
   getDocs, 
   updateDoc,
-  writeBatch
+  writeBatch,
+  deleteDoc
 } from 'firebase/firestore';
 
 // Deterministic conversation id for two users (sorted uids)
@@ -387,5 +388,14 @@ export const fetchOldConversations = async (userUid) => {
     return [];
   }
 };
-
-
+export const deleteMessage = async (conversationId, messageId) => {
+  if (!conversationId || !messageId) return;
+  const msgRef = doc(db, 'conversations', conversationId, 'messages', messageId);
+  try {
+    await deleteDoc(msgRef);
+    console.log('[Chat] Message deleted:', messageId);
+  } catch (err) {
+    console.error('[Chat] Failed to delete message:', err);
+    throw err;
+  }
+};

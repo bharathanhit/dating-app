@@ -251,7 +251,6 @@ export const AuthProvider = ({ children }) => {
     // A user is considered "complete" if they have a confirmed Firestore document
     // and profileComplete flag. This ensures all users go through onboarding.
     isProfileComplete: !!profile && profile._isFromFirestore && profile.profileComplete === true,
-    loading,
     refreshProfile
   };
 
