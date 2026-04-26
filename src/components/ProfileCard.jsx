@@ -18,6 +18,7 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [interactionStatus, setInteractionStatus] = useState(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [loadingLike, setLoadingLike] = useState(false);
 
   const effectiveStatus = status || interactionStatus;
 
@@ -70,73 +71,63 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
   }, [profile?.uid]);
 
   const handleLike = async () => {
+    if (loadingLike) return;
+    setLoadingLike(true);
     try {
       const likedUid = profile.uid || profile.id;
       if (!user || !user.uid) {
-        // redirect to login and indicate intended action
         navigate('/login', { state: { from: location.pathname, action: 'like', targetUid: likedUid } });
         return;
       }
 
-      const alreadyLiked = Array.isArray(myProfile?.likedProfiles) && myProfile.likedProfiles.some((p) => p.uid === likedUid);
+      // Check if this is a completely new like (never liked before)
+      const LIKE_COST = 1;
+      const hasLikedBefore = await hasEverLikedProfile(user.uid, likedUid);
 
-      if (alreadyLiked) {
-        // remove like (no coin refund)
-        await removeLikedProfile(user.uid, likedUid);
-        setSnackbar({ open: true, message: 'Removed like', severity: 'info' });
-        setInteractionStatus(null);
-      } else {
-        // Check if this is a completely new like (never liked before)
-        const LIKE_COST = 1;
-        const hasLikedBefore = await hasEverLikedProfile(user.uid, likedUid);
+      // If already liked, don't remove it on a heart click unless it's a specific "unlike" action.
+      if (hasLikedBefore && interactionStatus === 'liked') {
+        setSnackbar({ open: true, message: 'You already liked this profile!', severity: 'info' });
+        return;
+      }
 
-        // Only deduct coins if this is a brand new like
-        if (!hasLikedBefore) {
-          const currentCoins = await getUserCoins(user.uid);
+      // Only deduct coins if this is a brand new like
+      if (!hasLikedBefore) {
+        const currentCoins = await getUserCoins(user.uid);
 
-          if (currentCoins < LIKE_COST) {
-            setSnackbar({
-              open: true,
-              message: 'Insufficient coins! Purchase more coins to continue liking profiles.',
-              severity: 'error'
-            });
-            // Navigate to coins page after a short delay
-            setTimeout(() => {
-              navigate('/coins');
-            }, 2000);
-            return;
-          }
-
-          // Deduct coins for new like
-          const deducted = await deductCoins(user.uid, LIKE_COST, 'like');
-
-          if (!deducted) {
-            setSnackbar({
-              open: true,
-              message: 'Failed to deduct coins. Please try again.',
-              severity: 'error'
-            });
-            return;
-          }
+        if (currentCoins < LIKE_COST) {
+          setSnackbar({
+            open: true,
+            message: 'Insufficient coins! Purchase more coins to continue liking profiles.',
+            severity: 'error'
+          });
+          setTimeout(() => { navigate('/coins'); }, 2000);
+          return;
         }
 
-        // add minimal info
-        const likedEntry = { uid: likedUid, name: profile.name || '', image: images[0] || null };
-        await addLikedProfile(user.uid, likedEntry);
-        setInteractionStatus('liked');
-
-        if (hasLikedBefore) {
-          setSnackbar({ open: true, message: 'Liked again! (No coins deducted)', severity: 'success' });
-        } else {
-          setSnackbar({ open: true, message: `Liked! (${LIKE_COST} coin deducted)`, severity: 'success' });
+        const deducted = await deductCoins(user.uid, LIKE_COST, 'like');
+        if (!deducted) {
+          setSnackbar({ open: true, message: 'Failed to deduct coins. Please try again.', severity: 'error' });
+          return;
         }
       }
 
-      // refresh context profile so footer updates
+      // Add the liked profile
+      const likedEntry = { uid: likedUid, name: profile.name || '', image: images[0] || null };
+      await addLikedProfile(user.uid, likedEntry);
+      setInteractionStatus('liked');
+
+      if (hasLikedBefore) {
+        setSnackbar({ open: true, message: 'Profile liked!', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: `Liked! (${LIKE_COST} coin deducted)`, severity: 'success' });
+      }
+
       try { await refreshProfile(); } catch (e) { console.warn('refreshProfile failed', e); }
     } catch (err) {
       console.error('Error toggling like:', err);
       setSnackbar({ open: true, message: 'Error processing like. Please try again.', severity: 'error' });
+    } finally {
+      setLoadingLike(false);
     }
   };
 
@@ -385,11 +376,13 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
           <IconButton
             onClick={(e) => { e.stopPropagation(); handleLike(); }}
             id={likeBtnId}
+            disabled={loadingLike}
             sx={{
               width: 64,
               height: 64,
               background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
               color: 'white',
+              opacity: loadingLike ? 0.7 : 1,
               boxShadow: effectiveStatus === 'liked' ? '0 6px 20px rgba(17, 153, 142, 0.8)' : '0 4px 15px rgba(17, 153, 142, 0.4)',
               transform: effectiveStatus === 'liked' ? 'scale(1.1)' : 'scale(1)',
               transition: 'transform 0.2s',

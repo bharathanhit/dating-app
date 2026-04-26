@@ -1,4 +1,6 @@
 const { onCall, onRequest } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+
 const { setGlobalOptions } = require("firebase-functions/v2");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
@@ -351,3 +353,149 @@ exports.razorpayWebhook = onRequest(async (request, response) => {
 
     return response.status(200).send("Event Not Handled");
 });
+
+/**
+ * 4. Helper to send FCM notification
+ */
+async function sendPushNotification(userId, payload) {
+    try {
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) return;
+
+        const tokens = userDoc.data()?.fcmTokens || [];
+        if (tokens.length === 0) {
+            logger.info(`[FCM] No tokens for user ${userId}`);
+            return;
+        }
+
+        const message = {
+            notification: payload.notification,
+            data: payload.data || {},
+            tokens: tokens,
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(message);
+        logger.info(`[FCM] Successfully sent ${response.successCount} messages to user ${userId}`);
+
+        // Clean up invalid tokens
+        if (response.failureCount > 0) {
+            const failedTokens = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    const error = resp.error;
+                    if (error.code === 'messaging/invalid-registration-token' ||
+                        error.code === 'messaging/registration-token-not-registered') {
+                        failedTokens.push(tokens[idx]);
+                    }
+                }
+            });
+            if (failedTokens.length > 0) {
+                await db.collection("users").doc(userId).update({
+                    fcmTokens: admin.firestore.FieldValue.arrayRemove(...failedTokens)
+                });
+                logger.info(`[FCM] Removed ${failedTokens.length} invalid tokens for user ${userId}`);
+            }
+        }
+    } catch (error) {
+        logger.error(`[FCM] Error sending push notification to user ${userId}:`, error);
+    }
+}
+
+/**
+ * 5. Trigger: New Message Notification
+ */
+exports.onMessageCreated = onDocumentCreated({
+    document: "conversations/{conversationId}/messages/{messageId}",
+    region: "asia-south1"
+}, async (event) => {
+    const messageData = event.data.data();
+    const conversationId = event.params.conversationId;
+
+    try {
+        const convDoc = await db.collection("conversations").doc(conversationId).get();
+        if (!convDoc.exists) return;
+
+        const participants = convDoc.data().participants || [];
+        const senderId = messageData.from;
+        const recipientId = participants.find(id => id !== senderId);
+
+        if (!recipientId) return;
+
+        // Get sender info
+        const senderDoc = await db.collection("users").doc(senderId).get();
+        const senderName = senderDoc.data()?.name || "Someone";
+
+        await sendPushNotification(recipientId, {
+            notification: {
+                title: `New message from ${senderName}`,
+                body: messageData.type === 'audio' ? '🎤 Audio Message' : messageData.text,
+            },
+            data: {
+                conversationId: conversationId,
+                senderId: senderId,
+                type: 'chat'
+            }
+        });
+    } catch (error) {
+        logger.error("[onMessageCreated] Error:", error);
+    }
+});
+
+/**
+ * 6. Trigger: New Like Notification
+ */
+exports.onLikeCreated = onDocumentCreated({
+    document: "users/{userId}/likedBy/{likerId}",
+    region: "asia-south1"
+}, async (event) => {
+    const recipientId = event.params.userId;
+    const likerId = event.params.likerId;
+
+    try {
+        const likerDoc = await db.collection("users").doc(likerId).get();
+        const likerName = likerDoc.data()?.name || "Someone";
+
+        await sendPushNotification(recipientId, {
+            notification: {
+                title: "New Like! ❤️",
+                body: `${likerName} liked your profile!`,
+            },
+            data: {
+                likerId: likerId,
+                type: 'like'
+            }
+        });
+    } catch (error) {
+        logger.error("[onLikeCreated] Error:", error);
+    }
+});
+
+/**
+ * 7. Trigger: General Notification
+ */
+exports.onNotificationCreated = onDocumentCreated({
+    document: "users/{userId}/notifications/{notificationId}",
+    region: "asia-south1"
+}, async (event) => {
+    const recipientId = event.params.userId;
+    const notificationData = event.data.data();
+
+    // Skip if it's already a push-related notification or if we want to avoid loops
+    if (notificationData.skipPush) return;
+
+    try {
+        await sendPushNotification(recipientId, {
+            notification: {
+                title: notificationData.title || "New Notification",
+                body: notificationData.message || "You have a new update",
+            },
+            data: {
+                notificationId: event.params.notificationId,
+                type: 'general'
+            }
+        });
+    } catch (error) {
+        logger.error("[onNotificationCreated] Error:", error);
+    }
+});
+

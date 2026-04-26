@@ -11,13 +11,13 @@ export const firebaseConfig = {
   authDomain: "date-3963e.firebaseapp.com",
   databaseURL: "https://date-3963e-default-rtdb.firebaseio.com",
   projectId: "date-3963e",
-storageBucket: "date-3963e.appspot.com",
+  storageBucket: "date-3963e.appspot.com",
   messagingSenderId: "172915248443",
   appId: "1:172915248443:web:aa0bf66ed5e9c8379ffb1e",
   measurementId: "G-MCD9RC9VBP"
 };
 
-// Initialize Firebase
+// Initialize Firebase4
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Authentication

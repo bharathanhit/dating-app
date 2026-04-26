@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Box, Typography, List, ListItem, ListItemAvatar, Avatar, ListItemText, IconButton, Divider, Paper, Tabs, Tab, Button, Grid, Alert } from '@mui/material';
 import { Clear, ChatBubble, Lock } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { removeLikedProfile, getLikedProfiles, getLikedByProfiles, addLikedProfile } from '../services/userService';
-import { unlockLikesFeature } from '../services/coinService';
+import { removeLikedProfile, getLikedProfiles, getLikedByProfiles, addLikedProfile, hasEverLikedProfile } from '../services/userService';
+import { unlockLikesFeature, getUserCoins, deductCoins } from '../services/coinService';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SEOHead from '../components/SEOHead.jsx';
 
@@ -107,11 +107,27 @@ const LikesPage = () => {
     }
   };
 
-  const handleLikeBack = async (profile) => {
+  const handleLikeBack = async (targetProfile) => {
     try {
+      const likedUid = targetProfile.uid;
       if (!user || !user.uid) return;
-      await addLikedProfile(user.uid, profile);
-      alert(`You liked ${profile.name} back! It's a match!`);
+
+      const LIKE_COST = 1;
+      const hasLikedBefore = await hasEverLikedProfile(user.uid, likedUid);
+
+      if (!hasLikedBefore) {
+        const currentCoins = await getUserCoins(user.uid);
+        if (currentCoins < LIKE_COST) {
+          alert('Insufficient coins! Please purchase more to like profiles.');
+          navigate('/coins');
+          return;
+        }
+        await deductCoins(user.uid, LIKE_COST, 'like');
+      }
+
+      await addLikedProfile(user.uid, targetProfile);
+      alert(`You liked ${targetProfile.name} back! It's a match!`);
+      await fetchLiked(); // Refresh list
     } catch (err) {
       console.error('Failed to like back', err);
       alert('Failed to like back');

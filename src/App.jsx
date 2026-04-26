@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material';
+
+import { ThemeProvider, createTheme, Snackbar, Alert } from '@mui/material';
 import { AuthProvider } from './context/AuthContext.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
@@ -25,6 +27,7 @@ import LikeNotification from './components/LikeNotification.jsx';
 // import InstallPrompt from './components/InstallPrompt.jsx';
 import { useSetOnlineStatus } from './hooks/useOnlineStatus.js';
 import { useAuth } from './context/AuthContext.jsx';
+import { requestNotificationPermission, onMessageListener } from './services/notificationService.js';
 import './App.css';
 
 const theme = createTheme({
@@ -50,14 +53,54 @@ const App = () => {
 
 const AppContent = () => {
   const { user } = useAuth();
+  const [notification, setNotification] = useState({ open: false, title: '', body: '' });
 
   // Set user online status when authenticated
   useSetOnlineStatus(user?.uid);
 
+  // Request notification permission and set up foreground listener
+  useEffect(() => {
+    if (user?.uid) {
+      requestNotificationPermission(user.uid);
+      
+      const setupListener = async () => {
+        const unsubscribe = await onMessageListener((payload) => {
+          setNotification({
+            open: true,
+            title: payload.notification?.title || 'New Message',
+            body: payload.notification?.body || ''
+          });
+        });
+        return unsubscribe;
+      };
+
+      let unsubscribePromise = setupListener();
+      
+      return () => {
+        unsubscribePromise.then(unsub => unsub && unsub());
+      };
+    }
+  }, [user?.uid]);
+
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, open: false }));
+  };
+
   return (
     <Router>
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseNotification} severity="info" sx={{ width: '100%' }}>
+          <strong>{notification.title}</strong>: {notification.body}
+        </Alert>
+      </Snackbar>
       <LikeNotification />
       {/* <InstallPrompt /> */}
+
       <div className="app">
         <Navbar />
         <main className="main-content">
