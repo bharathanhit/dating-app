@@ -67,22 +67,6 @@ export const AuthProvider = ({ children }) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
 
-            // AUTO-FIX: If Firestore doc is missing basic info but Google has it, sync it now
-            if (!data.name && currentUser.displayName) {
-              console.log('[AuthContext] syncing Google display name to missing Firestore profile');
-              try {
-                const { updateDoc } = await import('firebase/firestore');
-                await updateDoc(doc(db, 'users', currentUser.uid), {
-                  name: currentUser.displayName,
-                  email: currentUser.email,
-                  updatedAt: new Date().toISOString()
-                });
-                // Listener will fire again with the new name
-              } catch (e) {
-                console.warn('Failed to auto-sync Google name:', e);
-              }
-            }
-
             const profileData = { ...docSnap.data(), _isFromFirestore: true };
             console.log('[AuthContext] Profile update received from Firestore');
             setProfile(profileData);
@@ -271,3 +255,7 @@ export const useAuth = () => {
 };
 
 export default AuthContext;
+
+
+
+

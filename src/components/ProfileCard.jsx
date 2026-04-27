@@ -320,9 +320,9 @@ const ProfileCard = ({ profile, likeBtnId, passBtnId, status, sx }) => {
             {profile.name} {profile.age && <span style={{ fontSize: '0.85em', fontWeight: 400, opacity: 0.9 }}>{profile.age}</span>}
           </Typography>
 
-          {profile.district && (
+          {(profile.district || profile.location) && (
             <Typography variant="body2" sx={{ color: '#fff', opacity: 0.9, fontWeight: 500, mb: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              📍 {profile.district}
+              📍 {profile.district || profile.location}{profile.state ? `, ${profile.state}` : ''}
             </Typography>
           )}
 

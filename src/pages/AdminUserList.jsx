@@ -19,13 +19,19 @@ import {
     Tooltip,
     Button,
     Tabs,
-    Tab
+    Tab,
+    Divider,
+    List,
+    ListItem,
+    ListItemText,
+    ListItemIcon
 } from '@mui/material';
-import { Search, Refresh, Block, Delete, ContentCopy, Email, Circle } from '@mui/icons-material';
+import { Search, Refresh, Block, Delete, ContentCopy, Email, Circle, History, AddCircle, TrendingUp, TrendingDown, MonetizationOn } from '@mui/icons-material';
 import { getAllUserProfiles } from '../services/userService';
 import { adminBlockUser, adminUnblockUser } from '../services/userService_admin';
+import { addCoins, getCoinTransactions } from '../services/coinService';
 import { useAuth } from '../context/AuthContext';
-import { signInWithEmailAndPassword } from 'firebase/auth'; // Import Email Sign-in
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'; // Import Auth methods
 import { auth, db } from '../config/firebase'; // Import auth instance
 import SEOHead from '../components/SEOHead';
 import { listenForAllOnlineUsers, setUserOffline } from '../services/chatServiceV2';
@@ -75,9 +81,27 @@ const AdminUserList = () => {
     const [selectedUser, setSelectedUser] = useState(null);
     const [blockReason, setBlockReason] = useState('');
 
+    // Coin Management State
+    const [openHistoryDialog, setOpenHistoryDialog] = useState(false);
+    const [openAddCoinsDialog, setOpenAddCoinsDialog] = useState(false);
+    const [transactionHistory, setTransactionHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [addCoinAmount, setAddCoinAmount] = useState(10);
+    const [addCoinReason, setAddCoinReason] = useState('Admin Reward');
+    const [isUpdatingCoins, setIsUpdatingCoins] = useState(false);
+
     useEffect(() => {
-        setIsAdminAuthenticated(false); // Force false on mount
-    }, []);
+        const allowedAdminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        
+        // Auto-authenticate if the main session already matches the admin email
+        if (user && user.email && allowedAdminEmail && 
+            user.email.toLowerCase() === allowedAdminEmail.toLowerCase()) {
+            console.log("[AdminUserList] Auto-authenticated matching session:", user.email);
+            setIsAdminAuthenticated(true);
+        } else {
+            setIsAdminAuthenticated(false);
+        }
+    }, [user]);
 
     // Action Handlers
     const handleOpenBlockDialog = (user) => {
@@ -135,39 +159,79 @@ const AdminUserList = () => {
         }
     };
 
+    const handleOpenHistory = async (user) => {
+        setSelectedUser(user);
+        setOpenHistoryDialog(true);
+        setHistoryLoading(true);
+        try {
+            const history = await getCoinTransactions(user.uid, 50);
+            setTransactionHistory(history);
+        } catch (error) {
+            console.error("Failed to fetch history:", error);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const handleOpenAddCoins = (user) => {
+        setSelectedUser(user);
+        setAddCoinAmount(10);
+        setAddCoinReason('Admin Reward');
+        setOpenAddCoinsDialog(true);
+    };
+
+    const handleConfirmAddCoins = async () => {
+        if (!selectedUser || !addCoinAmount || addCoinAmount <= 0) return;
+
+        setIsUpdatingCoins(true);
+        try {
+            await addCoins(selectedUser.uid, Number(addCoinAmount), addCoinReason);
+            alert(`Successfully added ${addCoinAmount} coins to ${selectedUser.name}`);
+            setOpenAddCoinsDialog(false);
+            fetchUsers(); // Refresh the list to see new balance
+        } catch (error) {
+            console.error("Failed to add coins:", error);
+            alert("Failed to add coins: " + error.message);
+        } finally {
+            setIsUpdatingCoins(false);
+        }
+    };
+
     const handleAdminLogin = async (e) => {
         e.preventDefault();
 
-        try {
-            // Secure Authentication: Verify credentials against Firebase
-            const userCredential = await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-            const user = userCredential.user;
+        // Security Check: Match against environment variables
+        const allowedAdminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        const requiredDashboardPassword = import.meta.env.VITE_ADMIN_PASSWORD;
 
-            // SECURITY: Whitelist Check
-            // Verify that the logged-in user is actually the allowed Admin
-            const allowedAdminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-
-            if (!allowedAdminEmail) {
-                console.error("VITE_ADMIN_EMAIL is not set in .env!");
-                alert("Configuration Error: The Admin Email is not configured in the server environment (.env). Please contact the developer.");
-                return;
-            }
-
-            console.log("Checking Email:", user.email, "vs Allowed:", allowedAdminEmail); // DEBUG LOG
-
-            if (user.email && user.email.toLowerCase() !== allowedAdminEmail.toLowerCase()) {
-                console.warn("Unauthorized login attempt by:", user.email);
-                alert(`ACCESS DENIED: The email '${user.email}' is not authorized to access this page.\nExpected: ${allowedAdminEmail}`);
-                return;
-            }
-
-            console.log("Admin authentication successful via Firebase.");
+        if (adminEmail.toLowerCase() === allowedAdminEmail?.toLowerCase() && 
+            adminPassword === requiredDashboardPassword) {
+            console.log("Admin manual bypass successful.");
             setIsAdminAuthenticated(true);
             setPasswordError(false);
-        } catch (error) {
-            console.error("Admin Login Failed:", error);
+        } else {
+            console.warn("Unauthorized manual access attempt.");
             setPasswordError(true);
-            alert("Login Failed: " + error.code + "\nEnsure the user exists in Firebase Authentication.");
+            alert("ACCESS DENIED: Incorrect Admin credentials.");
+        }
+    };
+
+    const handleAdminGoogleLogin = async () => {
+        try {
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            const user = result.user;
+            const allowedAdminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+
+            if (user.email?.toLowerCase() === allowedAdminEmail?.toLowerCase()) {
+                setIsAdminAuthenticated(true);
+            } else {
+                alert(`ACCESS DENIED: ${user.email} is not the authorized admin.`);
+                await signOut(auth);
+            }
+        } catch (error) {
+            console.error("Admin Google Login Failed:", error);
+            alert("Google Login Failed: " + error.message);
         }
     };
 
@@ -272,9 +336,21 @@ const AdminUserList = () => {
                                 type="submit"
                                 fullWidth
                                 variant="contained"
-                                sx={{ mt: 3, mb: 2, py: 1.5, fontWeight: 'bold' }}
+                                sx={{ mt: 3, mb: 1, py: 1.5, fontWeight: 'bold' }}
                             >
                                 Enter Dashboard
+                            </Button>
+
+                            <Divider sx={{ my: 2 }}>OR</Divider>
+
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                startIcon={<Email />}
+                                onClick={handleAdminGoogleLogin}
+                                sx={{ py: 1.5, fontWeight: 'bold', textTransform: 'none' }}
+                            >
+                                Sign in with Google Admin Account
                             </Button>
                         </Box>
                     </Paper>
@@ -426,7 +502,29 @@ const AdminUserList = () => {
                                             </Box>
                                         </TableCell>
                                         <TableCell>
-                                            <Chip label={`🪙 ${u.coins || 0}`} size="small" variant="outlined" sx={{ borderColor: '#FFD700', color: '#b29600' }} />
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Chip 
+                                                    label={`🪙 ${u.coins || 0}`} 
+                                                    size="small" 
+                                                    variant="outlined" 
+                                                    sx={{ 
+                                                        borderColor: '#FFD700', 
+                                                        color: '#b29600',
+                                                        fontWeight: 'bold',
+                                                        bgcolor: 'rgba(255, 215, 0, 0.05)'
+                                                    }} 
+                                                />
+                                                <Tooltip title="View Transaction History">
+                                                    <IconButton size="small" onClick={() => handleOpenHistory(u)} sx={{ color: '#754bffff' }}>
+                                                        <History fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Add Coins Manually">
+                                                    <IconButton size="small" onClick={() => handleOpenAddCoins(u)} sx={{ color: '#2e7d32' }}>
+                                                        <AddCircle fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
                                         </TableCell>
                                         <TableCell>
                                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'flex-start' }}>
@@ -585,6 +683,122 @@ const AdminUserList = () => {
                         </Button>
                     </DialogActions>
                 </Dialog>
+
+                {/* Coin History Dialog */}
+                <Dialog 
+                    open={openHistoryDialog} 
+                    onClose={() => setOpenHistoryDialog(false)}
+                    maxWidth="sm"
+                    fullWidth
+                >
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <History color="primary" />
+                        Coin History: {selectedUser?.name}
+                    </DialogTitle>
+                    <DialogContent dividers>
+                        {historyLoading ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                <CircularProgress size={30} />
+                            </Box>
+                        ) : transactionHistory.length === 0 ? (
+                            <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
+                                No transaction history found.
+                            </Typography>
+                        ) : (
+                            <List sx={{ pt: 0 }}>
+                                {transactionHistory.map((tx, idx) => (
+                                    <React.Fragment key={tx.id || idx}>
+                                        <ListItem alignItems="flex-start" sx={{ px: 1 }}>
+                                            <ListItemIcon sx={{ minWidth: 40 }}>
+                                                {tx.type === 'credit' ? (
+                                                    <TrendingUp sx={{ color: '#2e7d32' }} />
+                                                ) : (
+                                                    <TrendingDown sx={{ color: '#d32f2f' }} />
+                                                )}
+                                            </ListItemIcon>
+                                            <ListItemText
+                                                primary={
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                                            {tx.type === 'credit' ? '+' : '-'}{tx.amount} Coins
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {tx.createdAt?.seconds 
+                                                                ? new Date(tx.createdAt.seconds * 1000).toLocaleString() 
+                                                                : 'Recently added'}
+                                                        </Typography>
+                                                    </Box>
+                                                }
+                                                secondary={
+                                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', mt: 0.5 }}>
+                                                        <strong>Reason:</strong> {tx.reason || 'N/A'} 
+                                                        <Box component="span" sx={{ display: 'block', mt: 0.2, color: 'text.secondary', fontSize: '0.7rem' }}>
+                                                            Balance: {tx.balanceBefore || 0} → {tx.balanceAfter || 0}
+                                                        </Box>
+                                                    </Typography>
+                                                }
+                                            />
+                                        </ListItem>
+                                        {idx < transactionHistory.length - 1 && <Divider variant="inset" component="li" />}
+                                    </React.Fragment>
+                                ))}
+                            </List>
+                        )}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setOpenHistoryDialog(false)}>Close</Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Add Coins Dialog */}
+                <Dialog 
+                    open={openAddCoinsDialog} 
+                    onClose={() => setOpenAddCoinsDialog(false)}
+                >
+                    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <MonetizationOn sx={{ color: '#FFD700' }} />
+                        Add Coins to {selectedUser?.name}
+                    </DialogTitle>
+                    <DialogContent>
+                        <DialogContentText sx={{ mb: 2 }}>
+                            Add coins directly to this user's wallet. They will see this in their history.
+                        </DialogContentText>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            label="Amount of Coins"
+                            type="number"
+                            fullWidth
+                            variant="outlined"
+                            value={addCoinAmount}
+                            onChange={(e) => setAddCoinAmount(e.target.value)}
+                        />
+                        <TextField
+                            margin="dense"
+                            label="Reason for Credit"
+                            type="text"
+                            fullWidth
+                            variant="outlined"
+                            value={addCoinReason}
+                            onChange={(e) => setAddCoinReason(e.target.value)}
+                            placeholder="e.g. Compensation, Promo, Refund..."
+                            sx={{ mt: 2 }}
+                        />
+                    </DialogContent>
+                    <DialogActions sx={{ p: 3 }}>
+                        <Button onClick={() => setOpenAddCoinsDialog(false)}>Cancel</Button>
+                        <Button 
+                            onClick={handleConfirmAddCoins} 
+                            color="success" 
+                            variant="contained"
+                            disabled={isUpdatingCoins}
+                            startIcon={isUpdatingCoins ? <CircularProgress size={20} /> : <MonetizationOn />}
+                        >
+                            {isUpdatingCoins ? 'Processing...' : 'Credit Coins'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
                 {/* Debug Section */}
                 <Box sx={{ mt: 4, p: 2, bgcolor: '#f0f0f0', borderRadius: 2, fontSize: '0.75rem', fontFamily: 'monospace' }}>
                     <Typography variant="subtitle2" fontWeight="bold">DEBUG VIEW (Status Diagnosis)</Typography>

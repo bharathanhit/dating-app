@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AppBar, Toolbar, Typography, Button, IconButton, Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Divider, Badge, Chip, Tooltip } from '@mui/material';
-import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications, MonetizationOn, ContactSupport, PrivacyTip, Chat } from '@mui/icons-material';
+import { Person, Message, Favorite, Menu as MenuIcon, Home as HomeIcon, Close as CloseIcon, Logout as LogoutIcon, Notifications, MonetizationOn, ContactSupport, PrivacyTip, Chat, SportsEsports } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext.jsx';
@@ -21,13 +21,34 @@ const Navbar = () => {
   };
 
   const navItems = [
+    { text: 'Who Liked Me', to: { pathname: '/likes', state: { tab: 1 } }, icon: <Badge badgeContent={likeCount} color="error"><Notifications /></Badge> },
     {
-      text: 'Who Liked Me',
-      to: { pathname: '/likes', state: { tab: 1 } },
-      icon: (
-        <Badge badgeContent={likeCount} color="error">
-          <Notifications />
-        </Badge>
+      text: 'Gaming Arena', to: '/games', icon: (
+        <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <SportsEsports sx={{
+            color: '#9c27b0',
+            filter: 'drop-shadow(0 0 10px rgba(156, 39, 176, 0.5))',
+            animation: 'jello-vertical 2s infinite both'
+          }} />
+          <Box sx={{
+            position: 'absolute',
+            top: -8,
+            left: -14,
+            background: 'linear-gradient(90deg, #00f2ff, #0072ff)',
+            color: 'white',
+            fontSize: '0.55rem',
+            fontWeight: 900,
+            px: 0.8,
+            py: 0.2,
+            borderRadius: '4px',
+            boxShadow: '0 0 15px 2px rgba(255, 20, 147, 0.8)',
+            border: '1.5px solid white',
+            zIndex: 11,
+            lineHeight: 1
+          }}>
+            NEW
+          </Box>
+        </Box>
       )
     },
     { text: 'Profile', to: '/profile', icon: <Person /> },
@@ -91,29 +112,77 @@ const Navbar = () => {
             </Typography>
           </Box>
 
-          {/* Coin Balance - Show for logged in users */}
+          {/* Mobile & Desktop Gaming Icon + Coins */}
           {user && (
-            <Tooltip title="Buy Coins" placement="bottom">
-              <Chip
-                icon={<MonetizationOn sx={{ color: '#FFD700 !important' }} />}
-                label={coins || 0}
-                onClick={() => navigate('/coins')}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mr: { xs: 0, sm: 2 } }}>
+              {/* Game Icon - Mobile only version */}
+              <Box
+                component={Link}
+                to="/games"
                 sx={{
-                  mr: 2,
-                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                  color: '#000',
-                  fontWeight: 700,
-                  fontSize: { xs: '0.9rem', sm: '1rem' },
-                  cursor: 'pointer',
-                  border: '2px solid #FFD700',
-                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #FFA500 0%, #FFD700 100%)',
-                    boxShadow: '0 4px 12px rgba(255, 215, 0, 0.5)',
-                  },
+                  display: { xs: 'flex', md: 'none' },
+                  alignItems: 'center',
+                  textDecoration: 'none',
+                  position: 'relative',
+                  mr: 1,
+                  transition: 'transform 0.2s ease',
+                  '&:active': { transform: 'scale(0.95)' }
                 }}
-              />
-            </Tooltip>
+              >
+                <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  {/* Controller Icon with Jello Effect */}
+                  <SportsEsports sx={{
+                    fontSize: '1.8rem',
+                    color: '#9c27b0', // Vibrant Purple
+                    filter: 'drop-shadow(0 0 12px rgba(156, 39, 176, 0.6))',
+                    animation: 'jello-vertical 2s infinite both',
+                  }} />
+                  
+                  {/* NEW Badge with Strong Magenta Glow */}
+                  <Box sx={{
+                    position: 'absolute',
+                    top: -8,
+                    left: -14,
+                    background: 'linear-gradient(90deg, #00f2ff, #0072ff)', // Cyan to Blue
+                    color: 'white',
+                    fontSize: '0.55rem',
+                    fontWeight: 900,
+                    px: 0.8,
+                    py: 0.2,
+                    borderRadius: '4px',
+                    boxShadow: '0 0 15px 2px rgba(255, 20, 147, 0.8)', // Intense Magenta/Pink glow
+                    border: '1.5px solid white',
+                    zIndex: 11,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    lineHeight: 1
+                  }}>
+                    NEW
+                  </Box>
+                </Box>
+              </Box>
+
+              <Tooltip title="Buy Coins" placement="bottom">
+                <Chip
+                  icon={<MonetizationOn sx={{ color: '#FFD700 !important' }} />}
+                  label={coins || 0}
+                  onClick={() => navigate('/coins')}
+                  sx={{
+                    background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                    color: '#000',
+                    fontWeight: 700,
+                    fontSize: { xs: '0.85rem', sm: '1rem' },
+                    cursor: 'pointer',
+                    border: '2px solid #FFD700',
+                    boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #FFA500 0%, #FFD700 100%)',
+                      boxShadow: '0 4px 12px rgba(255, 215, 0, 0.5)',
+                    },
+                  }}
+                />
+              </Tooltip>
+            </Box>
           )}
 
           {/* Desktop buttons: hide on small screens */}
@@ -136,6 +205,48 @@ const Navbar = () => {
                 </IconButton>
                 <IconButton component={Link} to="/privacy" color="inherit" aria-label="privacy" title="Privacy Policy">
                   <PrivacyTip />
+                </IconButton>
+                <IconButton
+                  component={Link}
+                  to="/games"
+                  sx={{
+                    position: 'relative',
+                    bgcolor: 'rgba(156, 39, 176, 0.1)',
+                    p: 1.2,
+                    borderRadius: '50%',
+                    animation: 'floating-icon 3s infinite ease-in-out',
+                    border: '1px solid rgba(156, 39, 176, 0.3)',
+                    '&:hover': { background: 'rgba(156, 39, 176, 0.2)' }
+                  }}
+                  aria-label="games"
+                  title="Games"
+                >
+                  <Box sx={{ position: 'relative', display: 'flex' }}>
+                    <SportsEsports sx={{
+                      fontSize: '1.8rem',
+                      color: '#9c27b0',
+                      filter: 'drop-shadow(0 0 10px rgba(156, 39, 176, 0.5))',
+                      animation: 'jello-vertical 2s infinite both'
+                    }} />
+                    <Box sx={{
+                      position: 'absolute',
+                      top: -8,
+                      left: -14,
+                      background: 'linear-gradient(90deg, #00f2ff, #0072ff)',
+                      color: 'white',
+                      fontSize: '0.6rem',
+                      fontWeight: 900,
+                      px: 0.8,
+                      py: 0.2,
+                      borderRadius: '6px',
+                      boxShadow: '0 0 18px 2px rgba(255, 20, 147, 0.8)',
+                      zIndex: 10,
+                      border: '1.5px solid white',
+                      lineHeight: 1
+                    }}>
+                      NEW
+                    </Box>
+                  </Box>
                 </IconButton>
                 <IconButton component={Link} to="/profile" color="inherit" aria-label="profile" title="Profile">
                   <Person />

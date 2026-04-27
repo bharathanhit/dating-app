@@ -2,10 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Admin Check Function
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'bixsolcompany@gmail.com';
+    }
+    
     // 1. Users & Liked Profiles
     match /users/{userId} {
       allow read: if true;
-      allow write: if true; // DEBUG: Force open to test Ban functionality
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
 
       match /likedProfiles/{profileId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -18,19 +23,19 @@ service cloud.firestore {
       
       // Coin transactions subcollection
       match /coinTransactions/{transactionId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow write: if request.auth != null && request.auth.uid == userId;
+        allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+        allow write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       }
       
       // Blocked users subcollection
       match /blockedUsers/{blockedUserId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
       }
       
       // Notifications subcollection
       match /notifications/{notificationId} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow write: if request.auth != null;
+        allow read: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+        allow write: if isAdmin() || (request.auth != null);
       }
     }
 
@@ -45,18 +50,14 @@ service cloud.firestore {
     
     // 3. Reports collection
     match /reports/{reportId} {
-      // Users can create reports
       allow create: if request.auth != null;
-      // Only admins can read/update reports (for now, we'll allow read for testing)
-      allow read: if request.auth != null;
+      allow read: if isAdmin() || request.auth != null;
     }
     
     // 4. Blocks collection
     match /blocks/{blockId} {
-      // Users can create block records
       allow create: if request.auth != null;
-      // Allow read for admin review
-      allow read: if request.auth != null;
+      allow read: if isAdmin() || request.auth != null;
     }
   }
 }

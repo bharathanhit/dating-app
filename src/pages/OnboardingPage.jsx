@@ -33,6 +33,7 @@ import "@fontsource/poppins/700.css";
 import "@fontsource/dancing-script/400.css";
 import "@fontsource/dancing-script/700.css";
 import ImageCropper from "../components/ImageCropper";
+import { INDIA_STATES_DATA } from "../utils/indiaData";
 
 const steps = ["Personal Info", "Photos", "Preferences", "Bio", "Review & Confirm"];
 const INTERESTS_LIST = [
@@ -67,6 +68,7 @@ export default function OnboardingPage() {
     lookingFor: "",
     interests: [],
     birthDate: "",
+    state: "",
     district: "",
     bio: "",
   });
@@ -107,13 +109,7 @@ export default function OnboardingPage() {
     }
   }, [isProfileComplete, navigate]);
 
-  const TAMIL_NADU_DISTRICTS = [
-    'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur',
-    'Vellore', 'Thanjavur', 'Thoothukudi', 'Dindigul', 'Erode', 'Kancheepuram',
-    'Tiruvallur', 'Tirunelveli', 'Kanyakumari', 'Nagapattinam', 'Namakkal',
-    'Krishnagiri', 'Pudukkottai', 'Ramanathapuram', 'Sivaganga', 'Villupuram',
-    'Ariyalur', 'Cuddalore', 'Perambalur', 'Chengalpattu', 'Ranipet', 'Tenkasi', 'Mayiladuthurai'
-  ];
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -251,8 +247,20 @@ export default function OnboardingPage() {
                   </ToggleButtonGroup>
                 </FormControl>
                 <BirthDatePicker value={formData.birthDate} onChange={(date) => setFormData((prev) => ({ ...prev, birthDate: date }))} />
-                <Box sx={{ mt: 2 }}>
-                  <Autocomplete options={TAMIL_NADU_DISTRICTS} value={formData.district === '' ? null : formData.district} onChange={(e, val) => setFormData((p) => ({ ...p, district: val || '' }))} renderInput={(params) => <TextField {...params} label="District (Tamil Nadu)" placeholder="Select your district" size="small" />} />
+                <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Autocomplete
+                    options={INDIA_STATES_DATA.map(s => s.state)}
+                    value={formData.state || null}
+                    onChange={(e, val) => setFormData((p) => ({ ...p, state: val || '', district: '' }))}
+                    renderInput={(params) => <TextField {...params} label="State" placeholder="Select your state" size="small" />}
+                  />
+                  <Autocomplete
+                    options={INDIA_STATES_DATA.find(s => s.state === formData.state)?.districts || []}
+                    value={formData.district || null}
+                    disabled={!formData.state}
+                    onChange={(e, val) => setFormData((p) => ({ ...p, district: val || '' }))}
+                    renderInput={(params) => <TextField {...params} label="District" placeholder={formData.state ? "Select your district" : "Select state first"} size="small" />}
+                  />
                 </Box>
               </Box>
             </Box>
@@ -396,7 +404,7 @@ export default function OnboardingPage() {
               <Box sx={{ p: 2, bgcolor: "rgba(122, 47, 255, 0.08)", borderRadius: 3, border: "2px solid rgba(122, 47, 255, 0.2)" }}>
                 <Typography variant="body2" sx={{ mb: 1 }}><strong>Name:</strong> {formData.name}</Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}><strong>Gender:</strong> {formData.gender.charAt(0).toUpperCase() + formData.gender.slice(1)}</Typography>
-                <Typography variant="body2" sx={{ mb: 1 }}><strong>Birth Date:</strong> {formData.birthDate ? formData.birthDate.toLocaleDateString() : "Not selected"}</Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}><strong>Location:</strong> {formData.district}{formData.state ? `, ${formData.state}` : ''}</Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}><strong>Looking for:</strong> {LOOKING_FOR_OPTIONS.find(o => o.value === formData.lookingFor)?.label || "Not selected"}</Typography>
                 <Typography variant="body2" sx={{ mb: 1 }}><strong>Interests:</strong></Typography>
                 <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>

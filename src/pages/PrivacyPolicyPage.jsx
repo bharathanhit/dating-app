@@ -67,7 +67,7 @@ const PrivacyPolicyPage = () => {
                                 4. Contact Us
                             </Typography>
                             <p>
-                                If you have any questions about this Privacy Policy, please contact us at <strong>bixsolcompany@gmail.com</strong>.
+                                If you have any questions about this Privacy Policy, please contact us at <strong>contactbichat@gmail.com</strong>.
                             </p>
                         </Box>
 

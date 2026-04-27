@@ -41,7 +41,7 @@ export const createUserProfile = async (userId, profileData) => {
     // Only initialize these fields for NEW users (or partially created ones)
     if (isNewUser) {
       console.log(`[createUserProfile] Creating NEW user profile for ${userId}`);
-      saveData.coins = 25; // Initialize with 25 coins for new users
+      saveData.coins = 0; // Start with 0 coins, require purchase for premium features
       saveData.lastLoginDate = null; // Track last login for daily rewards
       saveData.isBlocked = false; // Whether user is currently blocked/banned
       saveData.blockReason = null; // Reason for block if blocked

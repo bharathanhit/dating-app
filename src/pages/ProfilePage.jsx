@@ -21,6 +21,7 @@ import { motion, useMotionValue, useTransform } from 'framer-motion';
 import SEOHead from '../components/SEOHead.jsx';
 import ImageCropper from '../components/ImageCropper';
 import { useNavigate } from 'react-router-dom';
+import { INDIA_STATES_DATA } from '../utils/indiaData';
 
 // Helper: convert file to data URL
 const fileToDataUrl = (file) => {
@@ -69,13 +70,13 @@ const SwipeableProfileCard = ({ profile, onLike, onPass }) => {
           <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
             Profile Preview
           </Typography>
-          {profile.location && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                📍 {profile.location}
-              </Typography>
-            </Box>
-          )}
+            {(profile.district || profile.location) && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  📍 {profile.district || profile.location}{profile.state ? `, ${profile.state}` : ''}
+                </Typography>
+              </Box>
+            )}
           <Typography variant="body2" color="text.secondary">
             {profile.bio || 'No bio added yet'}
           </Typography>
@@ -89,7 +90,7 @@ const ProfilePage = () => {
   const { user, profile, loading, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: '', bio: '', interests: [], location: '' });
+  const [form, setForm] = useState({ name: '', bio: '', interests: [], state: '', district: '' });
 
   // Gallery management
   // Items: { type: 'url' | 'file', content: string | File, id: string }
@@ -121,7 +122,8 @@ const ProfilePage = () => {
       name: profile?.name || '',
       bio: profile?.bio || '',
       interests: profile?.interests || [],
-      location: profile?.location || '',
+      state: profile?.state || '',
+      district: profile?.district || '',
     });
 
     // Initialize gallery
@@ -418,9 +420,9 @@ const ProfilePage = () => {
                         >
                           {profile.name}
                         </Typography>
-                        {profile.location && (
+                        {(profile.district || profile.location) && (
                           <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                            {profile.location}
+                            {profile.district || profile.location}{profile.state ? `, ${profile.state}` : ''}
                           </Typography>
                         )}
                       </>
@@ -433,25 +435,21 @@ const ProfilePage = () => {
                           onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                           sx={{ mb: 2 }}
                         />
-                        <Autocomplete
-                          options={[
-                            'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur',
-                            'Vellore', 'Thanjavur', 'Thoothukudi', 'Dindigul', 'Erode', 'Kancheepuram',
-                            'Tiruvallur', 'Tirunelveli', 'Kanyakumari', 'Nagapattinam', 'Namakkal',
-                            'Krishnagiri', 'Pudukkottai', 'Ramanathapuram', 'Sivaganga', 'Villupuram',
-                            'Ariyalur', 'Cuddalore', 'Perambalur', 'Chengalpattu', 'Ranipet', 'Tenkasi', 'Mayiladuthurai'
-                          ]}
-                          value={form.location || null}
-                          onChange={(e, val) => setForm((p) => ({ ...p, location: val || '' }))}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              label="Location (Tamil Nadu)"
-                              placeholder="Select your district"
-                            />
-                          )}
-                          sx={{ mb: 2 }}
-                        />
+                        <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <Autocomplete
+                            options={INDIA_STATES_DATA.map(s => s.state)}
+                            value={form.state || null}
+                            onChange={(e, val) => setForm((p) => ({ ...p, state: val || '', district: '' }))}
+                            renderInput={(params) => <TextField {...params} label="State" placeholder="Select your state" />}
+                          />
+                          <Autocomplete
+                            options={INDIA_STATES_DATA.find(s => s.state === form.state)?.districts || []}
+                            value={form.district || null}
+                            disabled={!form.state}
+                            onChange={(e, val) => setForm((p) => ({ ...p, district: val || '' }))}
+                            renderInput={(params) => <TextField {...params} label="District" placeholder={form.state ? "Select your district" : "Select state first"} />}
+                          />
+                        </Box>
                       </>
                     )}
                   </Box>

@@ -246,7 +246,7 @@ export const initializeUserCoins = async (userId) => {
   try {
     const userDocRef = doc(db, 'users', userId);
     await updateDoc(userDocRef, {
-      coins: 25,
+      coins: 0,
       lastLoginDate: null,
       updatedAt: serverTimestamp()
     });

@@ -90,9 +90,44 @@ body, html { overflow-x: hidden; }
   display: block !important;
 }
 
+/* Games Page Overrides */
+.games-page-active {
+  padding-bottom: 0 !important;
+  background: transparent !important; 
+}
+
+.games-page-active .main-content {
+  padding: 0 !important;
+}
+
+.games-page-active header.MuiAppBar-root {
+  margin-bottom: 0 !important;
+}
+
+@keyframes pulse-neon {
+  0% { transform: scale(1); filter: drop-shadow(0 0 2px #ff0000); }
+  100% { transform: scale(1.08); filter: drop-shadow(0 0 10px #ff8c00); }
+}
+
+@keyframes jello-vertical {
+  0% { transform: scale3d(1, 1, 1); }
+  30% { transform: scale3d(0.75, 1.25, 1); }
+  40% { transform: scale3d(1.25, 0.75, 1); }
+  50% { transform: scale3d(0.85, 1.15, 1); }
+  65% { transform: scale3d(1.05, 0.95, 1); }
+  75% { transform: scale3d(0.95, 1.05, 1); }
+  100% { transform: scale3d(1, 1, 1); }
+}
+
+@keyframes floating-icon {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0px); }
+}
+
 /* Add padding to bottom on mobile to prevent content from being hidden behind BottomNav */
 @media (max-width: 900px) {
-  .app {
+  .app:not(.games-page-active) {
     padding-bottom: 100px; /* 80px nav + 20px buffer */
   }
 }

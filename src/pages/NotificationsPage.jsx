@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, List, Paper, Avatar, ListItem, ListItemAvatar, ListItemText, ListItemButton, Alert, Chip, IconButton } from '@mui/material';
+import { Box, Typography, List, Paper, Avatar, ListItem, ListItemAvatar, ListItemText, ListItemButton, Alert, Chip, IconButton, Button } from '@mui/material';
 import { Favorite, Warning as WarningIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { subscribeToLikedBy, getUserNotifications, markNotificationAsRead } from '../services/userService';
+import { requestNotificationPermission } from '../services/notificationService';
 import { useNavigate } from 'react-router-dom';
 import SEOHead from '../components/SEOHead.jsx';
 
@@ -78,9 +79,30 @@ const NotificationsPage = () => {
                 noindex={true}
             />
             <Box sx={{ p: { xs: 2, md: 4 }, bgcolor: 'background.default', minHeight: '80vh', maxWidth: 600, mx: 'auto' }}>
-                <Typography variant="h5" sx={{ mb: 3, color: '#7a2fff', fontWeight: 700, textAlign: 'center', letterSpacing: 1 }}>
+                <Typography variant="h5" sx={{ mb: 1, color: '#7a2fff', fontWeight: 700, textAlign: 'center', letterSpacing: 1 }}>
                     Notifications
                 </Typography>
+
+                <Box sx={{ mb: 3, textAlign: 'center' }}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => {
+                            if (user?.uid) {
+                                requestNotificationPermission(user.uid).then(token => {
+                                    if (token) alert('Notifications enabled successfully!');
+                                    else alert('Notifications could not be enabled. Please check your browser settings.');
+                                });
+                            }
+                        }}
+                        sx={{ borderRadius: 5, textTransform: 'none' }}
+                    >
+                        Enable Push Notifications
+                    </Button>
+                    <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                        Click to ensure you get notified about new messages
+                    </Typography>
+                </Box>
 
                 {loading && <Typography sx={{ color: '#888', textAlign: 'center', my: 4 }}>Loading...</Typography>}
 

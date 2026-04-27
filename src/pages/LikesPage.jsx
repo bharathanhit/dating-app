@@ -90,6 +90,14 @@ const LikesPage = () => {
     if (window.confirm('Unlock "Who Liked Me" for 10 coins? Access lasts for 1 week.')) {
       setLoadingLikedBy(true);
       try {
+        // Check coins first
+        const currentCoins = await getUserCoins(user.uid);
+        if (currentCoins < 10) {
+          alert('Insufficient coins! Please purchase more to unlock this feature.');
+          navigate('/coins');
+          return;
+        }
+
         const result = await unlockLikesFeature(user.uid);
         if (result.success) {
           await refreshProfile();
@@ -229,7 +237,7 @@ const LikesPage = () => {
                     '&:hover': { bgcolor: '#6920e0' }
                   }}
                 >
-                  Unlock for 10 Coins (1 Week)
+                  Unlock for 10 Coins (₹10 / 1 Week)
                 </Button>
 
                 {/* Blurry preview */}

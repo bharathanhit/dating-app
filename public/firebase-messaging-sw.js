@@ -1,5 +1,5 @@
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
   apiKey: "AIzaSyADG4gONMt7vfgLllYPBe3LKD9S0xwQzEA",
@@ -15,20 +15,29 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   
-  const notificationTitle = payload.notification?.title || 'New Notification';
+  const notificationTitle = payload.notification?.title || 'New Message';
   const notificationOptions = {
-    body: payload.notification?.body || 'You have a new message',
+    body: payload.notification?.body || 'You have a new message on BiChat',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    data: payload.data
+    data: payload.data,
+    tag: payload.data?.conversationId || 'general',
+    renotify: true,
+    vibrate: [200, 100, 200], // Custom vibration pattern
+    requireInteraction: false, // Don't stick forever unless it's critical
+    dir: 'ltr',
+    timestamp: Date.now()
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 self.addEventListener('notificationclick', (event) => {
+  console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification.data);
   event.notification.close();
-  const urlToOpen = '/messages'; // or use event.notification.data.url if available
+  
+  const conversationId = event.notification.data?.conversationId;
+  const urlToOpen = conversationId ? `/messagesv2?uid=${event.notification.data.senderId}` : '/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

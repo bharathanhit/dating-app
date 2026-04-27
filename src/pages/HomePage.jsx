@@ -74,6 +74,7 @@ const HomePage = () => {
             ...p,
             age,
             district: district || p.district || '',
+            state: p.state || '',
             bio: p.bio || '',
             image: p.image || p.photoURL || 'https://via.placeholder.com/800x600',
           };
@@ -130,6 +131,7 @@ const HomePage = () => {
           ...p,
           age,
           district: district || p.district || '',
+          state: p.state || '',
           bio: p.bio || '',
           image: p.image || p.photoURL || 'https://via.placeholder.com/800x600',
         };

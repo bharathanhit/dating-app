@@ -64,7 +64,11 @@ const PublicProfilePage = () => {
         </Box>
         <Box>
           <Typography variant="h4">{profile.name} {age ? `, ${age}` : ''}</Typography>
-          {profile.location && <Typography color="text.secondary">{profile.location}</Typography>}
+          {(profile.district || profile.location) && (
+            <Typography color="text.secondary">
+              {profile.district || profile.location}{profile.state ? `, ${profile.state}` : ''}
+            </Typography>
+          )}
         </Box>
       </Box>
 
